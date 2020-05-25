@@ -269,23 +269,23 @@ def truncate_trajectory_after_final_whole_block(traj):
 
 def calculate_msd(traj_file, num_partitions=1, out_file=None):
     # Preprocess file. Accepted file formats: .gsd, .xyz, .xyz.gz.
-    traj_file_orig = traj_file
-    if traj_file_orig.endswith(".gsd"):
-        traj_file_xyz_gz = traj_file[:-3] + "xyz.gz"
-        if exists(traj_file_xyz_gz):
-            print(".xyz.gz file of this trajectory already exists")
-            traj_file_orig = traj_file_xyz_gz
-            traj_file = traj_file_xyz_gz
-        else:
-            traj_file_xyz = traj_file[:-3] + "xyz"
-            print("converting .gsd file to .xyz.")
-            convert_trajectory_gsd_to_xyz(traj_file, traj_file_xyz, compress=False)
-            traj_file = traj_file_xyz
-    if traj_file_orig.endswith(".gz"):
-        print("decompressing .gz.")
-        subprocess.run(["gzip", "--decompress", "--keep", "--force", traj_file])
-        traj_file = splitext(traj_file)[0]
-        decompressed_traj_file = traj_file
+    # traj_file_orig = traj_file
+    # if traj_file_orig.endswith(".gsd"):
+    #     traj_file_xyz_gz = traj_file[:-3] + "xyz.gz"
+    #     if exists(traj_file_xyz_gz):
+    #         print(".xyz.gz file of this trajectory already exists")
+    #         traj_file_orig = traj_file_xyz_gz
+    #         traj_file = traj_file_xyz_gz
+    #     else:
+    #         traj_file_xyz = traj_file[:-3] + "xyz"
+    #         print("converting .gsd file to .xyz.")
+    #         convert_trajectory_gsd_to_xyz(traj_file, traj_file_xyz, compress=False)
+    #         traj_file = traj_file_xyz
+    # if traj_file_orig.endswith(".gz"):
+    #     print("decompressing .gz.")
+    #     subprocess.run(["gzip", "--decompress", "--keep", "--force", traj_file])
+    #     traj_file = splitext(traj_file)[0]
+    #     decompressed_traj_file = traj_file
 
 
     # Start analysis.
@@ -323,13 +323,13 @@ def calculate_msd(traj_file, num_partitions=1, out_file=None):
             msds.append(this_msd)
 
     # Don't keep decompressed file.
-    if traj_file_orig.endswith(".gz"):
-        print("removing decompressed .xyz file.")
-        subprocess.run(["rm", decompressed_traj_file])
-    # Compress .xyz file for next time.
-    if traj_file_orig.endswith(".gsd") and not exists(traj_file_xyz + ".gz"):
-        print("Compressing .xyz file for next time.")
-        subprocess.run(["gzip", "--verbose", traj_file_xyz])
+    # if traj_file_orig.endswith(".gz"):
+    #     print("removing decompressed .xyz file.")
+    #     subprocess.run(["rm", decompressed_traj_file])
+    # # Compress .xyz file for next time.
+    # if traj_file_orig.endswith(".gsd") and not exists(traj_file_xyz + ".gz"):
+    #     print("Compressing .xyz file for next time.")
+    #     subprocess.run(["gzip", "--verbose", traj_file_xyz])
 
     if out_file:
         # Save
