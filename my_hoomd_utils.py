@@ -1,7 +1,6 @@
 import math
 import numpy as np
 import garnett
-import MDAnalysis as mda
 import io
 import gsd
 import gsd.hoomd
