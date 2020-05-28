@@ -25,8 +25,7 @@ class IPL(Model):
 
     def setup(self):
         # Neighbor list.
-        optimal_r_buff = 0.15   # workstation GPU, T = 0.53, N = 2000.
-        nl = md.nlist.cell(r_buff=optimal_r_buff)
+        nl = md.nlist.cell()
 
         # IPL interactions.
         epsilon = 1.0
@@ -45,8 +44,7 @@ class StickySpheres(Model):
     default_rho = 0.6
 
     def setup(self):
-        optimal_r_buff = 0.17   # workstation GPU, T = 0.77, N = 3000.
-        nl = md.nlist.cell(r_buff=optimal_r_buff)
+        nl = md.nlist.cell()
 
         x_cut = 2**(1/6) * 1.2
         sigmaAA = 1.0; sigmaAB = 1.18; sigmaBB = 1.4;
@@ -70,8 +68,7 @@ class Hertzian(Model):
     default_rho = 0.938
 
     def setup(self):
-        optimal_r_buff = 0.34 # workstation GPU, T = 0.0018, N = 4000
-        nl = md.nlist.cell(r_buff=optimal_r_buff)
+        nl = md.nlist.cell()
 
         rA = 0.5; rB = 0.7
         sigmaAA = 2*rA; sigmaAB = rA + rB; sigmaBB = 2*rB;
