@@ -8,9 +8,18 @@ import gsd.hoomd
 import subprocess
 import re
 import atooms.postprocessing as pp
+import os
 import atooms
 from atooms.trajectory.decorators import Sliced
+import atooms.trajectory
 from os.path import basename, dirname, splitext, join, exists
+from file_reading_functions import make_nested_dir
+
+import hoomd
+from hoomd import md
+
+from collections import namedtuple
+
 
 
 
@@ -296,7 +305,7 @@ def calculate_msd(traj_file, num_partitions=1, out_file=None):
     with atooms.trajectory.Trajectory(traj_file) as traj:
         base, max_exp = detect_base_and_max_exp(traj.steps)
         block_size = int(base ** max_exp)
-        print("detected a logarithmically spaced trajectory with block_size %d ** %d" % (base, max_exp))
+        print("detected a logarithmically spaced trajectory with block_size %d ** %d. Num frames in block: %d" % (base, max_exp, traj.block_size))
         nframes = len(traj)
         frames_per_partition = nframes // num_partitions
         print("number of frames to analyze: %d" % nframes)
@@ -310,7 +319,7 @@ def calculate_msd(traj_file, num_partitions=1, out_file=None):
             nblocks = (tmax - tmin) // block_size
             # tgrid the same for each tranche. 
             if not tgrid:
-                tgrid = [base**m for m in range(0, max_exp)] + [float(m*block_size) for m in range(1, nblocks//2)]
+                tgrid = [base**m for m in range(0, max_exp)] + [float(m*block_size) for m in range(1, int(nblocks//2))]
             # analysis = pp.MeanSquareDisplacement(subtraj, tgrid=tgrid)
             analysis = pp.Partial(pp.MeanSquareDisplacement, trajectory=subtraj, tgrid=tgrid, species=species)
             analysis.do()
@@ -353,8 +362,8 @@ def calculate_radial_distribution_function(traj_file, out_file=None):
     """Assume trajectory has format .xyz.gz"""
 
     # decompress.
-    subprocess.run(["gzip", "--decompress", "--keep", "--force", traj_file])
-    traj_file = splitext(traj_file)[0]
+    # subprocess.run(["gzip", "--decompress", "--keep", "--force", traj_file])
+    # traj_file = splitext(traj_file)[0]
 
     with atooms.trajectory.Trajectory(traj_file) as traj:
         species = traj[0].distinct_species()
@@ -386,18 +395,18 @@ def calculate_radial_distribution_function(traj_file, out_file=None):
         np.savetxt(out_file, columns, fmt=fmt, header=header)
 
     # Don't keep decompressed file.
-    subprocess.run(["rm", traj_file])
+    # subprocess.run(["rm", traj_file])
 
 
-def calculate_structure_factor(traj_file, out_file=None, out_file_kmax=None, ksamples=40):
+def calculate_structure_factor(traj_file, out_file=None, ksamples=40):
     """
     Assume trajectory has format .xyz.gz
     Writes the first peak of the structure factor for each species in out_file_kmax.
     """
 
     # decompress.
-    subprocess.run(["gzip", "--decompress", "--keep", "--force", traj_file])
-    traj_file = splitext(traj_file)[0]
+    # subprocess.run(["gzip", "--decompress", "--keep", "--force", traj_file])
+    # traj_file = splitext(traj_file)[0]
 
     with atooms.trajectory.Trajectory(traj_file) as traj:
         species = traj[0].distinct_species()
@@ -428,23 +437,17 @@ def calculate_structure_factor(traj_file, out_file=None, out_file_kmax=None, ksa
         columns = np.column_stack(columns)
         np.savetxt(out_file, columns, fmt=fmt, header=header)
 
-    # if out_file_kmax:
+    return ks
 
 
-    # Don't keep decompressed file.
-    subprocess.run(["rm", traj_file])
-
-
-def calculate_self_intermediate_scattering_function(traj_file, q_values, out_file=None):
+def calculate_self_intermediate_scattering_function(traj_file, k_values, out_file=None, **kwargs):
     """
     Assume trajectory has format .xyz.gz
-    q_values contains a q value for each species; this would normally be the maximum of the first peak in the static structure factor.
+    k_values contains a q value for each species; this would normally be the maximum of the first peak in the static structure factor.
     """
 
-    q_values = np.array(q_values)
-    # decompress.
-    subprocess.run(["gzip", "--decompress", "--keep", "--force", traj_file])
-    traj_file = splitext(traj_file)[0]
+    # This is necessary because atooms-pp has bugs when k_values is not sorted in ascending order.
+    k_values = np.sort(np.array(k_values))
 
     with atooms.trajectory.Trajectory(traj_file) as traj:
         # traj = truncate_trajectory_after_final_whole_block(traj)
@@ -460,23 +463,25 @@ def calculate_self_intermediate_scattering_function(traj_file, q_values, out_fil
         nblocks = (tmax - tmin) // block_size
         tgrid = [base**m for m in range(0, max_exp)] + [float(2**m*block_size) for m in range(0, int(np.floor(np.log2(nblocks//2))) + 1)]
 
-
         # I don't know how to tell the library to compute a different q value for each species.
         # I just compute both q values for each species. Not very efficient.
-        analysis = pp.Partial(pp.SelfIntermediateScattering, trajectory=traj, species=species, tgrid=tgrid, kgrid=q_values)
+        analysis = pp.Partial(pp.SelfIntermediateScattering, trajectory=traj, species=species, tgrid=tgrid, kgrid=k_values, **kwargs)
         analysis.do()
         analysis = analysis.partial # Dict with results for each species
 
+        print("Actual kgrid:", analysis[species[0]].kgrid)
+
         fks = []
-        actual_q_values = []
+        actual_k_values = []
         for i, spec in enumerate(species):
             # This happens if the q values are actually the same for both species.
             if len( analysis[species[0]].kgrid ) == 1:
                 fks.append(analysis[spec].value[0])
-                actual_q_values.append(analysis[spec].kgrid[0])
+                actual_k_values.append(analysis[spec].kgrid[0])
             else:
                 fks.append(analysis[spec].value[i])
-                actual_q_values.append(analysis[spec].kgrid[i])
+                actual_k_values.append(analysis[spec].kgrid[i])
+
 
     if out_file:
         columns = (tgrid,)
@@ -485,18 +490,94 @@ def calculate_self_intermediate_scattering_function(traj_file, q_values, out_fil
         for i, spec in enumerate(species):
             columns += (fks[i],)
             fmt += " %.8g"
-            header += "F_s(t, k=%.2f)_species%s," % (actual_q_values[i], spec)
+            header += "F_s(t, k=%.2f)_species%s," % (actual_k_values[i], spec)
         header = header[:-1]    # remove final comma.
 
         columns = np.column_stack(columns)
         np.savetxt(out_file, columns, fmt=fmt, header=header)
 
-    # Don't keep decompressed file.
-    subprocess.run(["rm", traj_file])
+
+
+def calculate_correlator_1d(ts, values):
+    base, max_exp = detect_base_and_max_exp(ts)
+    block_size = int(base ** max_exp)
+    tmin = ts[0]
+    tmax = ts[-1]
+    nblocks = (tmax - tmin) // block_size
+    num_frames_in_block = int(max_exp + 1)
+    tgrid = [base**m for m in range(0, max_exp)] + [float(2**m*block_size) for m in range(0, int(np.floor(np.log2(nblocks//2))) + 1)]
+
+    MockTrajectory = namedtuple('MockTrajectory', 'steps block_size timestep')
+    traj = MockTrajectory(ts, num_frames_in_block, 1)
+    offsets = pp.helpers.setup_t_grid(traj, tgrid)    
+    skip = pp.helpers.adjust_skip(traj, n_origins=-1)
+
+    def autocorrelator(x, y):
+        return x*y
+
+    grid, corr = pp.correlation.gcf_offset(autocorrelator, offsets, skip, ts, values)
+    return grid, corr
 
 
 
+def setup_cubic_grid_random_binary_types(N, rho):
+    dim = 3
+    L = (N / rho) ** (1/dim)
+    n = int(np.ceil(N ** (1/dim)))
+    a = L / n
+
+    snapshot = hoomd.data.make_snapshot(N=N, box=hoomd.data.boxdim(L=L, dimensions=dim), particle_types=['A', 'B'], dtype='double')
+
+    # Select half to make type B.
+    particle_ids = np.arange(N)
+    np.random.shuffle(particle_ids)
+    for i in range(N//2):
+        snapshot.particles.typeid[ particle_ids[i] ] = 1
+
+    i = 0
+    for x in range(n):
+        for y in range(n):
+            for z in range(n):
+                if i >= N:
+                    break
+
+                snapshot.particles.position[i, 0] = a*x - L/2;
+                snapshot.particles.position[i, 1] = a*y - L/2;
+                snapshot.particles.position[i, 2] = a*z - L/2;
+                i += 1
+
+    return snapshot
 
 
+def setup_output_folders(base_folder):
+
+    traj_folder = os.path.join(base_folder, "trajectory")
+    log_folder = os.path.join(base_folder, "log")
+    make_nested_dir(traj_folder)
+    make_nested_dir(log_folder)
+    traj_file = os.path.join(traj_folder, "trajectory.gsd")
+    qty_file = os.path.join(log_folder, "quantities.dat")
+    final_state_file = os.path.join(traj_folder, "final_state.gsd")
+
+    return traj_file, qty_file, final_state_file
+
+
+def setup_3d_ipl():
+    # Neighbor list.
+    optimal_r_buff = 0.15   # workstation GPU, T = 0.53, N = 2000.
+    nl = md.nlist.cell(r_buff=optimal_r_buff)
+
+    # IPL interactions.
+    epsilon = 1.0
+    sigmaAA = 1.0; sigmaAB = 1.18; sigmaBB = 1.4;
+    xcut = 1.48
+    rcutAA = xcut * sigmaAA; rcutAB = xcut * sigmaAB; rcutBB = xcut * sigmaBB;
+
+    ipl = md.pair.ipl_edan(nlist=nl, r_cut=rcutAA)
+    ipl.pair_coeff.set('A', 'A', sigma=sigmaAA, epsilon=epsilon, r_cut=rcutAA)
+    ipl.pair_coeff.set('A', 'B', sigma=sigmaAB, epsilon=epsilon, r_cut=rcutAB)
+    ipl.pair_coeff.set('B', 'B', sigma=sigmaBB, epsilon=epsilon, r_cut=rcutBB)
+
+    return nl, ipl
 
 
