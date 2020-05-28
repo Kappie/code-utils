@@ -1,4 +1,3 @@
-from diverging_map import ColorMapCreator
 import scipy.signal
 from matplotlib.lines import Line2D
 from matplotlib import rc
