@@ -16,6 +16,7 @@ class Model(object):
 
 class IPL(Model):
     default_rho = 0.82
+    name = 'ipl'
 
     def get_dt(self):
         if self.T < 1:
@@ -42,6 +43,7 @@ class IPL(Model):
 
 class StickySpheres(Model):
     default_rho = 0.6
+    name = 'sticky_spheres'
 
     def setup(self):
         nl = md.nlist.cell()
@@ -66,6 +68,7 @@ class StickySpheres(Model):
 
 class Hertzian(Model):
     default_rho = 0.938
+    name = 'hertzian'
 
     def setup(self):
         nl = md.nlist.cell()
