@@ -580,3 +580,32 @@ def setup_3d_ipl():
     return nl, ipl
 
 
+def setup_3d_sticky_spheres():
+    optimal_r_buff = 0.17   # workstation GPU, T = 0.77, N = 3000.
+    nl = md.nlist.cell(r_buff=optimal_r_buff)
+
+    x_cut = 2**(1/6) * 1.2
+    sigmaAA = 1.0; sigmaAB = 1.18; sigmaBB = 1.4;
+    rcutAA = sigmaAA*x_cut; rcutAB = sigmaAB*x_cut; rcutBB = sigmaBB*x_cut;
+
+    sticky = md.pair.sticky_spheres(nlist=nl, r_cut=rcutBB)
+    sticky.pair_coeff.set('A', 'A', sigma=sigmaAA, r_cut=rcutAA)
+    sticky.pair_coeff.set('A', 'B', sigma=sigmaAB, r_cut=rcutAB)
+    sticky.pair_coeff.set('B', 'B', sigma=sigmaBB, r_cut=rcutBB)
+
+    return nl, sticky
+
+def setup_3d_hertzian():
+
+    nl = md.nlist.cell()
+
+    rA = 0.5; rB = 0.7
+    sigmaAA = 2*rA; sigmaAB = rA + rB; sigmaBB = 2*rB;
+    rcutAA = sigmaAA; rcutAB = sigmaAB; rcutBB = sigmaBB;
+
+    herzian = md.pair.hertzian(nlist=nl, r_cut=rcutAA)
+    herzian.pair_coeff.set('A', 'A', sigma=sigmaAA, r_cut=rcutAA)
+    herzian.pair_coeff.set('A', 'B', sigma=sigmaAB, r_cut=rcutAB)
+    herzian.pair_coeff.set('B', 'B', sigma=sigmaBB, r_cut=rcutBB)
+
+    return nl, hertzian
