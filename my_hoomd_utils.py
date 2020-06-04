@@ -10,6 +10,8 @@ import atooms.postprocessing as pp
 import os
 import atooms
 from atooms.trajectory.decorators import Sliced
+from atooms.trajectory import Trajectory
+from atooms.trajectory.decorators import Unfolded
 import atooms.trajectory
 from os.path import basename, dirname, splitext, join, exists
 from file_reading_functions import make_nested_dir
@@ -18,7 +20,7 @@ import hoomd
 from hoomd import md
 
 from collections import namedtuple
-
+from dataclasses import dataclass
 
 
 
@@ -35,14 +37,14 @@ def log_period(block_size, base=2):
     return period
 
 
-def dump_hoomd_snapshot_to_xyz(snap, filename, save_velocity=False, save_force=False, write_mode="w"):
+def dump_hoomd_snapshot_to_xyz(snap, filename, save_velocity=False, save_force=False, step=0, write_mode="w"):
     pos = snap.particles.position
     im = snap.particles.image
     N = pos.shape[0]
     types = snap.particles.typeid
     box = snap.box
 
-    comment_line="columns=type,x,y,z,imx,imy,imz"
+    comment_line="step=%d columns=type,x,y,z,imx,imy,imz" % (step)
     columns = (types, pos[:, 0], pos[:, 1], pos[:, 2], im[:, 0], im[:, 1], im[:, 2])
     fmt = "%d %.12g %.12g %.12g %d %d %d"
 
@@ -58,7 +60,8 @@ def dump_hoomd_snapshot_to_xyz(snap, filename, save_velocity=False, save_force=F
         columns += (force[:, 0], force[:, 1], force[:, 2])
         fmt += " %.12g %.12g %.12g" 
 
-    comment_line += " cell=%.12g,%.12g,%.12g,%.12g,%.12g,%.12g\n" % (box.Lx, box.Ly, box.Lz, box.xy, box.xz, box.yz)
+    # comment_line += " cell=%.12g,%.12g,%.12g,%.12g,%.12g,%.12g\n" % (box.Lx, box.Ly, box.Lz, box.xy, box.xz, box.yz)
+    comment_line += " cell=%.12g,%.12g,%.12g\n" % (box.Lx, box.Ly, box.Lz)
     data = np.column_stack(columns)
 
     with open(filename, write_mode) as f:
@@ -249,6 +252,48 @@ def read_trajectory_xyz(traj_file):
         box = np.array([Lx, Ly, Lz])
 
     return ( N, pos, ptypes, box )
+
+
+
+def read_trajectory(traj_file, frame=0, unfold=False):
+
+    with atooms.trajectory.Trajectory(traj_file) as traj:
+        if unfold:
+            traj_unf = Unfolded(traj)
+            system_unf = traj_unf[frame]
+            pos_unf = system_unf.dump(['pos'])
+
+        system = traj[frame]
+        step = traj.steps[frame]
+
+        data  = system.dump(['pos', 'spe'])
+        box = system.cell.side
+        N = len(system.particle)
+        distinct_species = system.distinct_species()
+
+        # Convert species from ['A', 'A', 'B', ...] to [0, 0, 1, ...] when distinct_species = ['A', 'B']
+        species_to_typeid = {}
+        typeid = 0
+        for species in distinct_species:
+            species_to_typeid[species] = typeid
+            typeid += 1
+
+        # Convert positions from -L/2, L/2 to 0, L
+        pos = data['particle.position'] 
+        for d in range(pos.shape[1]):
+            pos[:, d] += box[d]/2
+            if unfold:
+                pos_unf[:, d] += box[d]/2
+
+        species = data['particle.species']    # This is 'A', 'A', 'B', etc when distinct_species = ['A', 'B']
+        convert_to_typeid = np.vectorize( lambda species: species_to_typeid[species] )
+        typeid = convert_to_typeid(species).astype(int) # This is 0, 0, 1, etc when distinct_species = ['A', 'B']
+
+    snap = {'step': step, 'npart': N, 'pos': pos, 'ptypes': typeid, 'box': box}
+    if unfold:
+        snap['pos_unf'] = pos_unf
+
+    return snap
 
 
 def detect_base_and_max_exp(steps):
