@@ -11,7 +11,8 @@ import numpy as np
 parser = argparse.ArgumentParser()
 parser.add_argument("--script", type=str)
 parser.add_argument("--job_name", type=str)
-parser.add_argument("script_args", type=str)
+parser.add_argument("--octocore", action='store_true')
+parser.add_argument("--script_args", type=str)
 
 args = parser.parse_args()
 
@@ -19,6 +20,7 @@ working_dir = os.getcwd()
 script = args.script
 job_name = args.job_name
 script_args = args.script_args
+octocore = args.octocore
 
 out_dir = os.environ.get("OUT_DIR")
 out_file = os.path.join(out_dir, job_name + ".o")
@@ -36,8 +38,11 @@ launch_file = "/tmp/%s_%.10f.pbs" % (job_name, np.random.rand())
 with open(launch_file, "w") as f:
     f.write(launch_script)
 
-#cmd = "qsub -o %s -e %s -l nodes=1:octocore %s" % (out_file, err_file, launch_file)
-cmd = "qsub -o %s -e %s %s" % (out_file, err_file, launch_file)
+if octocore:
+    cmd = "qsub -o %s -e %s -l nodes=1:octocore %s" % (out_file, err_file, launch_file)
+else:
+    cmd = "qsub -o %s -e %s %s" % (out_file, err_file, launch_file)
+
 print(cmd)
 subprocess.run(cmd, shell=True)
 
