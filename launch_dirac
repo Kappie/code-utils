@@ -36,11 +36,12 @@ launch_file = "/tmp/%s_%.10f.pbs" % (job_name, np.random.rand())
 with open(launch_file, "w") as f:
     f.write(launch_script)
 
+#cmd = "qsub -o %s -e %s -l nodes=1:octocore %s" % (out_file, err_file, launch_file)
 cmd = "qsub -o %s -e %s %s" % (out_file, err_file, launch_file)
 print(cmd)
 subprocess.run(cmd, shell=True)
 
-
+os.remove(launch_file)
 
 
 
