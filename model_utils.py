@@ -85,6 +85,15 @@ class StickySpheres(Model):
         else:
             return 0.0025
 
+class StickySpheres2D(StickySpheres):
+    name = '2d_sticky_spheres'
+    folder_name = 'sticky_spheres'
+    dim = 2
+
+    def setup(self):
+        md.update.enforce2d()
+        super().setup()
+
 
 class Hertzian(Model):
     default_rho = 0.938
@@ -114,5 +123,6 @@ models = {
     'ipl': IPL,
     '2dipl': IPL2D,
     'sticky_spheres': StickySpheres,
+    '2d_sticky_spheres': StickySpheres2D,
     'hertzian': Hertzian
 }
