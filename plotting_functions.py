@@ -42,7 +42,7 @@ def myshow():
     plt.tight_layout()
     plt.show()
 
-def init_fig(width=None, height=None, grid=(1,1), locs=None, colspans=None, rowspans=None, projections=None, facecolor='white', ax_width=0.5):
+def init_fig(width=None, height=None, grid=(1,1), locs=None, colspans=None, rowspans=None, projections=None, facecolor='white', ax_width=0.5, text_font_size=text_font_size, label_font_size=label_font_size):
     if not width:
         width = grid[1]*4
     if not height:

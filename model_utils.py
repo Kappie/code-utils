@@ -6,12 +6,19 @@ from hoomd import md
 
 
 class Model(object):
+    dim = 3
+    folder_name = None
+
     def __init__(self, T, rho=None):
         self.T = T
         if rho == None:
             self.rho = self.default_rho
         else:
             self.rho = rho
+
+        if self.folder_name is None:
+            self.folder_name = self.name
+
 
 
 class IPL(Model):
@@ -40,6 +47,19 @@ class IPL(Model):
         ipl.pair_coeff.set('B', 'B', sigma=sigmaBB, epsilon=epsilon, r_cut=rcutBB)
 
         self.neighbor_list = nl
+
+
+class IPL2D(IPL):
+    name = '2dipl'
+    folder_name = 'ipl'
+    default_rho = 0.86
+    dim = 2
+
+    def setup(self):
+        md.update.enforce2d()
+        super().setup()
+        
+
 
 class StickySpheres(Model):
     default_rho = 0.6
@@ -92,6 +112,7 @@ class Hertzian(Model):
 
 models = {
     'ipl': IPL,
+    '2dipl': IPL2D,
     'sticky_spheres': StickySpheres,
     'hertzian': Hertzian
 }
