@@ -564,8 +564,7 @@ def calculate_correlator_1d(ts, values):
 
 
 
-def setup_cubic_grid_random_binary_types(N, rho):
-    dim = 3
+def setup_cubic_grid_random_binary_types(N, rho, dim=3):
     L = (N / rho) ** (1/dim)
     n = int(np.ceil(N ** (1/dim)))
     a = L / n
@@ -579,16 +578,28 @@ def setup_cubic_grid_random_binary_types(N, rho):
         snapshot.particles.typeid[ particle_ids[i] ] = 1
 
     i = 0
-    for x in range(n):
-        for y in range(n):
-            for z in range(n):
+    if dim == 3:
+        for x in range(n):
+            for y in range(n):
+                for z in range(n):
+                    if i >= N:
+                        break
+
+                    snapshot.particles.position[i, 0] = a*x - L/2;
+                    snapshot.particles.position[i, 1] = a*y - L/2;
+                    snapshot.particles.position[i, 2] = a*z - L/2;
+                    i += 1
+
+    elif dim == 2:
+        for x in range(n):
+            for y in range(n):
                 if i >= N:
                     break
 
                 snapshot.particles.position[i, 0] = a*x - L/2;
                 snapshot.particles.position[i, 1] = a*y - L/2;
-                snapshot.particles.position[i, 2] = a*z - L/2;
                 i += 1
+
 
     return snapshot
 
