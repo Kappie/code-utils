@@ -80,10 +80,13 @@ class StickySpheres(Model):
         self.neighbor_list = nl
 
     def get_dt(self):
-        if self.T < 1:
-            return 0.005
+        if self.rho < 0.8:
+            if self.T < 1:
+                return 0.005
+            else:
+                return 0.0025
         else:
-            return 0.0025
+            return 0.001
 
 class StickySpheres2D(StickySpheres):
     name = '2d_sticky_spheres'
