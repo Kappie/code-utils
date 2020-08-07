@@ -22,6 +22,7 @@ class Model(object):
 
 
 class IPL(Model):
+    particle_types = ['A', 'B']
     default_rho = 0.82
     name = 'ipl'
 
@@ -62,6 +63,7 @@ class IPL2D(IPL):
 
 
 class StickySpheres(Model):
+    particle_types = ['A', 'B']
     default_rho = 0.6
     name = 'sticky_spheres'
 
@@ -101,6 +103,7 @@ class StickySpheres2D(StickySpheres):
 class Hertzian(Model):
     default_rho = 0.938
     name = 'hertzian'
+    particle_types = ['A', 'B']
 
     def setup(self):
         nl = md.nlist.cell()
@@ -121,11 +124,51 @@ class Hertzian(Model):
 
 
 
+class IPLMono(Model):
+    default_rho = 0.82
+    name = 'ipl_mono'
+    particle_types = ['A']
+
+    def get_dt(self):
+        if self.T < 1:
+            return 0.005
+        else:
+            return 0.0025
+
+    def setup(self):
+        # Neighbor list.
+        nl = md.nlist.cell()
+
+        # IPL interactions.
+        epsilon = 1.0
+        sigmaAA = 1.0;
+        xcut = 1.48
+        rcutAA = xcut * sigmaAA;
+
+        ipl = md.pair.ipl_edan(nlist=nl, r_cut=rcutAA)
+        ipl.pair_coeff.set('A', 'A', sigma=sigmaAA, epsilon=epsilon, r_cut=rcutAA)
+
+        self.neighbor_list = nl
+
+
+class IPLMono2D(IPLMono):
+    name = '2dipl_mono'
+    folder_name = 'ipl_mono'
+    default_rho = 0.86
+    dim = 2
+
+    def setup(self):
+        md.update.enforce2d()
+        super().setup()
+
 
 models = {
     'ipl': IPL,
     '2dipl': IPL2D,
     'sticky_spheres': StickySpheres,
     '2d_sticky_spheres': StickySpheres2D,
-    'hertzian': Hertzian
+    'hertzian': Hertzian,
+    'ipl_mono': IPLMono,
+    '2dipl_mono': IPLMono2D,
 }
+

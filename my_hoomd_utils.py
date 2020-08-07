@@ -258,6 +258,7 @@ def read_trajectory_xyz(traj_file):
 def read_trajectory(traj_file, frame=0, unfold=False):
 
     with atooms.trajectory.Trajectory(traj_file) as traj:
+        num_frames = len(traj)
         if unfold:
             traj_unf = Unfolded(traj)
             system_unf = traj_unf[frame]
@@ -268,6 +269,12 @@ def read_trajectory(traj_file, frame=0, unfold=False):
 
         data  = system.dump(['pos', 'spe'])
         box = system.cell.side
+        if traj[0].number_of_dimensions == 2 or box[2] == 1: # HOOMD convention for 2D is to have a [Lx, Ly, 1] box.
+            ndim = 2
+        else:
+            ndim = 3
+        box = box[:ndim]
+
         N = len(system.particle)
         distinct_species = system.distinct_species()
 
@@ -279,7 +286,7 @@ def read_trajectory(traj_file, frame=0, unfold=False):
             typeid += 1
 
         # Convert positions from -L/2, L/2 to 0, L
-        pos = data['particle.position'] 
+        pos = data['particle.position'][:, :ndim]
         for d in range(pos.shape[1]):
             pos[:, d] += box[d]/2
             if unfold:
@@ -293,7 +300,7 @@ def read_trajectory(traj_file, frame=0, unfold=False):
     if unfold:
         snap['pos_unf'] = pos_unf
 
-    return snap
+    return snap, num_frames
 
 
 def detect_base_and_max_exp(steps):
@@ -320,30 +327,10 @@ def truncate_trajectory_after_final_whole_block(traj):
     return truncated_traj
 
 
-def calculate_msd(traj_file, num_partitions=1, out_file=None):
-    # Preprocess file. Accepted file formats: .gsd, .xyz, .xyz.gz.
-    # traj_file_orig = traj_file
-    # if traj_file_orig.endswith(".gsd"):
-    #     traj_file_xyz_gz = traj_file[:-3] + "xyz.gz"
-    #     if exists(traj_file_xyz_gz):
-    #         print(".xyz.gz file of this trajectory already exists")
-    #         traj_file_orig = traj_file_xyz_gz
-    #         traj_file = traj_file_xyz_gz
-    #     else:
-    #         traj_file_xyz = traj_file[:-3] + "xyz"
-    #         print("converting .gsd file to .xyz.")
-    #         convert_trajectory_gsd_to_xyz(traj_file, traj_file_xyz, compress=False)
-    #         traj_file = traj_file_xyz
-    # if traj_file_orig.endswith(".gz"):
-    #     print("decompressing .gz.")
-    #     subprocess.run(["gzip", "--decompress", "--keep", "--force", traj_file])
-    #     traj_file = splitext(traj_file)[0]
-    #     decompressed_traj_file = traj_file
-
-
-    # Start analysis.
+def calculate_msd(traj_file, num_partitions=1, out_file=None, out_file_quantities=None):
     ts = []
     msds = []
+    derived_quantities = [] # contains dicts with diffusive time and diffusion coefficient.
     tgrid = None
 
     with atooms.trajectory.Trajectory(traj_file) as traj:
@@ -371,48 +358,57 @@ def calculate_msd(traj_file, num_partitions=1, out_file=None):
 
             ts.append(analysis[species[0]].grid)
             this_msd = []
+            this_derived_quantities = []
             for spec in species:
                 this_msd.append(analysis[spec].value)
+                this_derived_quantities.append( analysis[spec].analysis )
             msds.append(this_msd)
+            derived_quantities.append(this_derived_quantities)
 
-    # Don't keep decompressed file.
-    # if traj_file_orig.endswith(".gz"):
-    #     print("removing decompressed .xyz file.")
-    #     subprocess.run(["rm", decompressed_traj_file])
-    # # Compress .xyz file for next time.
-    # if traj_file_orig.endswith(".gsd") and not exists(traj_file_xyz + ".gz"):
-    #     print("Compressing .xyz file for next time.")
-    #     subprocess.run(["gzip", "--verbose", traj_file_xyz])
 
     if out_file:
         # Save
         columns = (ts[0],)
         fmt = "%d"
         header = "columns=step,"
+        tau_D = np.zeros((num_partitions, len(species)))
+        D = np.zeros((num_partitions, len(species)))
         for n in range(num_partitions):
             for spec_i, spec in enumerate(species):
                 columns += (msds[n][spec_i],)
                 fmt += " %.8g"
                 header += "msd_partition%d_species%s," % (n + 1, spec)
+                tau_D[n, spec_i] = derived_quantities[n][spec_i]['diffusive time tau_D']
+                D[n, spec_i] = derived_quantities[n][spec_i]['diffusion coefficient D']
+
         header = header[:-1]    # remove final comma.
 
         columns = np.column_stack(columns)
         np.savetxt(out_file, columns, fmt=fmt, header=header)
 
+    if out_file_quantities:
+        header = "columns="
+        fmt = ""
+        columns = ()
+        for spec_i, spec in enumerate(species):
+            header += "D_%s,tau_D_%s," % (spec, spec)
+            fmt += "%.6g %.6g "
+            columns += (D[:, spec_i],tau_D[:, spec_i])
+
+        header = header[:-1]    # remove final comma.
+        columns = np.column_stack(columns)
+        np.savetxt(out_file_quantities, columns, fmt=fmt.strip(), header=header)
+
     return ts, msds
         
 
 def calculate_radial_distribution_function(traj_file, out_file=None):
-    """Assume trajectory has format .xyz.gz"""
-
-    # decompress.
-    # subprocess.run(["gzip", "--decompress", "--keep", "--force", traj_file])
-    # traj_file = splitext(traj_file)[0]
 
     with atooms.trajectory.Trajectory(traj_file) as traj:
+        print("Averaging over %d snapshots" % len(traj))
         species = traj[0].distinct_species()
 
-        analysis = pp.Partial(pp.RadialDistributionFunction, trajectory=traj, species=species)
+        analysis = pp.Partial(pp.RadialDistributionFunction, trajectory=traj, species=species, dr=0.02)
         analysis.do()
         analysis = analysis.partial # Dict with results for each species
 
@@ -564,18 +560,22 @@ def calculate_correlator_1d(ts, values):
 
 
 
-def setup_cubic_grid_random_binary_types(N, rho, dim=3):
+def setup_cubic_grid_random_types(N, rho, dim=3, particle_types=['A', 'B']):
     L = (N / rho) ** (1/dim)
     n = int(np.ceil(N ** (1/dim)))
     a = L / n
 
-    snapshot = hoomd.data.make_snapshot(N=N, box=hoomd.data.boxdim(L=L, dimensions=dim), particle_types=['A', 'B'], dtype='double')
+    snapshot = hoomd.data.make_snapshot(N=N, box=hoomd.data.boxdim(L=L, dimensions=dim), particle_types=particle_types, dtype='double')
 
     # Select half to make type B.
-    particle_ids = np.arange(N)
-    np.random.shuffle(particle_ids)
-    for i in range(N//2):
-        snapshot.particles.typeid[ particle_ids[i] ] = 1
+    types = np.zeros((N)).astype(int)
+    num_types = len(particle_types)
+    num_per_type = N // num_types
+    for i in range(N):
+        types[i] = i // num_per_type
+    np.random.shuffle(types)
+    for i in range(N):
+        snapshot.particles.typeid[i] = types[i]
 
     i = 0
     if dim == 3:

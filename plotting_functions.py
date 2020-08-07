@@ -43,6 +43,7 @@ def myshow():
     plt.show()
 
 def init_fig(width=None, height=None, grid=(1,1), locs=None, colspans=None, rowspans=None, projections=None, facecolor='white', ax_width=0.5, text_font_size=text_font_size, label_font_size=label_font_size):
+    # locs: 
     if not width:
         width = grid[1]*4
     if not height:
@@ -64,7 +65,7 @@ def init_fig(width=None, height=None, grid=(1,1), locs=None, colspans=None, rows
 
     params = {
         'text.usetex': True,
-        'text.latex.preamble': [r'\usepackage{physics}', r'\usepackage{amsmath}', r'\usepackage{cmbright}', '\DeclareMathOperator{\cdf}{cdf}', '\DeclareMathOperator{\pdf}{pdf}'],
+        'text.latex.preamble': [r'\usepackage{physics}', r'\usepackage{amsmath}', r'\usepackage{cmbright}', '\DeclareMathOperator{\cdf}{CDF}', '\DeclareMathOperator{\pdf}{PDF}'],
         'text.latex.preview': False,
         'xtick.labelsize': label_font_size,
         'ytick.labelsize': label_font_size,
@@ -224,7 +225,7 @@ def nice_hist(x, x_min=None, x_max=None, bins=10, min_hits=0, density=False):
     return counts[idx], centers[idx]
 
 
-def add_labels(axes, style=r'(%s)'):
+def add_labels(axes, style=r'(%s)', shift_x_em=0.0):
     """
     Adds figure labels (a), (b), (c), etc. to axes.
     Must be called after plt.tight_layout().
@@ -241,8 +242,9 @@ def add_labels(axes, style=r'(%s)'):
         transform = ax.transAxes
         inv_transform = ax.transAxes.inverted()
         ylabelbox = ax.yaxis.label.get_window_extent()
+        fontsize = ax.yaxis.label.get_size()
         axbox = ax.get_window_extent()
-        labelx_pixel = ylabelbox.x0
+        labelx_pixel = ylabelbox.x0 + shift_x_em*fontsize  # move 0.5 em to the left to align better.
         labely_pixel = axbox.y1
         labelx, labely = inv_transform.transform((labelx_pixel, labely_pixel))
         fontsize = ax.yaxis.label.get_font_properties().get_size()
