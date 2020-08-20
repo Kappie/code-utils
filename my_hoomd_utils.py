@@ -17,8 +17,11 @@ from os.path import basename, dirname, splitext, join, exists
 from file_reading_functions import make_nested_dir
 from scipy.interpolate import interp1d
 
-import hoomd
-from hoomd import md
+try:
+    import hoomd
+    from hoomd import md
+except:
+    pass
 
 from collections import namedtuple
 from dataclasses import dataclass

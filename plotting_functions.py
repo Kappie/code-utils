@@ -23,9 +23,9 @@ from palettable.colorbrewer.diverging import RdYlBu_7
 # colors = ['palevioletred', 'darkslateblue', 'mediumseagreen', 'mediumpurple', 'darkorange', 'firebrick', 'mediumturquoise', 'olive', 'indigo', 'goldenrod']
 colors = sns.color_palette('colorblind')
 markers = list(Line2D.filled_markers)
-annot_font_size = 7
-label_font_size = 7
-text_font_size = 9
+annot_font_size = 8
+label_font_size = 8
+text_font_size = 10
 legend_font_size = label_font_size
 fit_lw = 0.75
 markeredgewidth = 0.5
@@ -42,12 +42,12 @@ def myshow():
     plt.tight_layout()
     plt.show()
 
-def init_fig(width=None, height=None, grid=(1,1), locs=None, colspans=None, rowspans=None, projections=None, facecolor='white', ax_width=0.5, text_font_size=text_font_size, label_font_size=label_font_size):
+def init_fig(width=None, height=None, grid=(1,1), locs=None, colspans=None, rowspans=None, projections=None, facecolor='white', ax_width=0.5, text_font_size=text_font_size, label_font_size=label_font_size, default_size=4.0):
     # locs: 
     if not width:
-        width = grid[1]*4
+        width = grid[1]*default_size
     if not height:
-        height = grid[0]*4
+        height = grid[0]*default_size
 
     if not locs:
         ncols, nrows = grid
