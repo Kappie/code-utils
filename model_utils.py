@@ -9,7 +9,7 @@ class Model(object):
     dim = 3
     folder_name = None
 
-    def __init__(self, T, rho=None):
+    def __init__(self, T=None, rho=None):
         self.T = T
         if rho == None:
             self.rho = self.default_rho
@@ -148,6 +148,8 @@ class IPLMono(Model):
         self.neighbor_list = nl
 
 
+
+
 class IPLMono2D(IPLMono):
     name = '2dipl_mono'
     folder_name = 'ipl_mono'
@@ -159,6 +161,23 @@ class IPLMono2D(IPLMono):
         super().setup()
 
 
+class ForceShiftedLJ(Model):
+    name = "force_shifted_lj"
+    folder_name = "force_shifted_lj"
+
+    def setup(self, r_cut):
+        # Neighbor list.
+        nl = md.nlist.cell()
+
+        # LJ interactions.
+        epsilon = 1.0
+        sigmaAA = 1.0;
+
+        lj = md.pair.force_shifted_lj(nlist=nl, r_cut=r_cut)
+        lj.pair_coeff.set('A', 'A', sigma=sigmaAA, epsilon=epsilon, r_cut=r_cut)
+
+        self.neighbor_list = nl
+
 models = {
     'ipl': IPL,
     '2dipl': IPL2D,
@@ -167,5 +186,6 @@ models = {
     'hertzian': Hertzian,
     'ipl_mono': IPLMono,
     '2dipl_mono': IPLMono2D,
+    'force_shifted_lj': ForceShiftedLJ
 }
 
