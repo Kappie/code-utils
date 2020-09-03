@@ -66,6 +66,8 @@ class StickySpheres(Model):
     particle_types = ['A', 'B']
     default_rho = 0.6
     name = 'sticky_spheres'
+    dt = {1.2: 0.001, 0.95: 0.002, 0.80: 0.003, 0.70: 0.003, 0.60: 0.005}
+    qmax = {0.95: [7.35, 6.4], 0.80: [6.86, 6.06], 0.70: [6.86, 5.87]}
 
     def setup(self):
         nl = md.nlist.cell()
@@ -82,10 +84,11 @@ class StickySpheres(Model):
         self.neighbor_list = nl
 
     def get_dt(self):
-        if self.T < 1:
-            return 0.005
-        else:
-            return 0.0025
+        return self.dt[self.rho]
+
+    def get_qmax(self):
+        return self.qmax[self.rho]
+
 
 class StickySpheres2D(StickySpheres):
     name = '2d_sticky_spheres'

@@ -15,9 +15,13 @@ from atooms.trajectory.decorators import Unfolded
 import atooms.trajectory
 from os.path import basename, dirname, splitext, join, exists
 from file_reading_functions import make_nested_dir
+from scipy.interpolate import interp1d
 
-import hoomd
-from hoomd import md
+try:
+    import hoomd
+    from hoomd import md
+except:
+    pass
 
 from collections import namedtuple
 from dataclasses import dataclass
@@ -343,7 +347,7 @@ def calculate_msd(traj_file, num_partitions=1, out_file=None, out_file_quantitie
         species = traj[0].distinct_species()
         print("Detected %d different species, " % len(species), species)
         for n in range(num_partitions):
-            print("starting with partition %d/%d" % (n, num_partitions))
+            print("starting with partition %d/%d" % (n+1, num_partitions))
             subtraj = Sliced(traj, slice(n*frames_per_partition, (n+1)*frames_per_partition))
             tmin = subtraj.steps[0]
             tmax = subtraj.steps[-1]
@@ -378,8 +382,8 @@ def calculate_msd(traj_file, num_partitions=1, out_file=None, out_file_quantitie
                 columns += (msds[n][spec_i],)
                 fmt += " %.8g"
                 header += "msd_partition%d_species%s," % (n + 1, spec)
-                tau_D[n, spec_i] = derived_quantities[n][spec_i]['diffusive time tau_D']
-                D[n, spec_i] = derived_quantities[n][spec_i]['diffusion coefficient D']
+                tau_D[n, spec_i] = derived_quantities[n][spec_i].get('diffusive time tau_D', 0.0)
+                D[n, spec_i] = derived_quantities[n][spec_i].get('diffusion coefficient D', 0.0)
 
         header = header[:-1]    # remove final comma.
 
@@ -438,7 +442,7 @@ def calculate_radial_distribution_function(traj_file, out_file=None):
     # subprocess.run(["rm", traj_file])
 
 
-def calculate_structure_factor(traj_file, out_file=None, ksamples=40):
+def calculate_structure_factor(traj_file, out_file=None, **kwargs):
     """
     Assume trajectory has format .xyz.gz
     Writes the first peak of the structure factor for each species in out_file_kmax.
@@ -451,7 +455,7 @@ def calculate_structure_factor(traj_file, out_file=None, ksamples=40):
     with atooms.trajectory.Trajectory(traj_file) as traj:
         species = traj[0].distinct_species()
 
-        analysis = pp.Partial(pp.StructureFactor, trajectory=traj, species=species, ksamples=ksamples)
+        analysis = pp.Partial(pp.StructureFactor, trajectory=traj, species=species, **kwargs)
         analysis.do()
         analysis = analysis.partial # Dict with results for each species
 
@@ -479,15 +483,38 @@ def calculate_structure_factor(traj_file, out_file=None, ksamples=40):
 
     return ks
 
+def _extract_tau(fks, t):
+    cutoff = 0.2
+    boundaries_fit = np.asarray([0.05, 0.7])
+    num_species = len(fks)
+    taus = np.zeros(num_species)
 
-def calculate_self_intermediate_scattering_function(traj_file, k_values, out_file=None, **kwargs):
+    for i, fk in enumerate(fks):
+        # import pdb; pdb.set_trace()
+        idx = np.logical_and(fk > boundaries_fit[0], fk < boundaries_fit[1])
+        fk_zoom = fk[idx]
+        t_zoom = t[idx]
+
+        try:
+            interp_function = interp1d(fk_zoom, np.log(t_zoom))
+            taus[i] = np.exp(interp_function(cutoff))
+        except ValueError:
+            taus[i] = np.nan
+
+    return taus
+
+def calculate_self_intermediate_scattering_function(traj_file, k_values, out_file=None, out_file_quantities=None, **kwargs):
     """
     Assume trajectory has format .xyz.gz
     k_values contains a q value for each species; this would normally be the maximum of the first peak in the static structure factor.
     """
 
     # This is necessary because atooms-pp has bugs when k_values is not sorted in ascending order.
-    k_values = np.sort(np.array(k_values))
+    # But we need to remember which k-value belongs to which species.
+    k_values = np.array(k_values)
+    unsorted_k_values = np.copy(k_values)
+    sort_idx = np.argsort(k_values)
+    k_values = k_values[sort_idx]
 
     with atooms.trajectory.Trajectory(traj_file) as traj:
         # traj = truncate_trajectory_after_final_whole_block(traj)
@@ -495,13 +522,14 @@ def calculate_self_intermediate_scattering_function(traj_file, k_values, out_fil
         base, max_exp = detect_base_and_max_exp(traj.steps)
         traj = Sliced(traj, slice(0, 255*(max_exp) + 1))    # super weird bug in hoomd where it fucks up the period after 256 blocks?
         block_size = int(base ** max_exp)
-        print("detected a logarithmically spaced trajectory with block_size %d ** %d = %d" % (base, max_exp, block_size))
         species = traj[0].distinct_species()
+        print("detected a logarithmically spaced trajectory of %d frames with block_size %d ** %d = %d" % (num_frames, base, max_exp, block_size))
+        print("Using q_values", unsorted_k_values, "for species", species)
         nframes = len(traj)
         tmin = traj.steps[0]
         tmax = traj.steps[-1]
         nblocks = (tmax - tmin) // block_size
-        tgrid = [base**m for m in range(0, max_exp)] + [float(2**m*block_size) for m in range(0, int(np.floor(np.log2(nblocks//2))) + 1)]
+        tgrid = [0] + [base**m for m in range(0, max_exp)] + [float(2**m*block_size) for m in range(0, int(np.floor(np.log2(nblocks//2))) + 1)]
 
         # I don't know how to tell the library to compute a different q value for each species.
         # I just compute both q values for each species. Not very efficient.
@@ -509,19 +537,25 @@ def calculate_self_intermediate_scattering_function(traj_file, k_values, out_fil
         analysis.do()
         analysis = analysis.partial # Dict with results for each species
 
-        print("Actual kgrid:", analysis[species[0]].kgrid)
 
         fks = []
         actual_k_values = []
         for i, spec in enumerate(species):
-            # This happens if the q values are actually the same for both species.
+            # This happens if the q values are actually the same for all species.
             if len( analysis[species[0]].kgrid ) == 1:
-                fks.append(analysis[spec].value[0])
+                fks.append( np.array(analysis[spec].value[0]) )
                 actual_k_values.append(analysis[spec].kgrid[0])
             else:
-                fks.append(analysis[spec].value[i])
-                actual_k_values.append(analysis[spec].kgrid[i])
+                fks.append( np.array(analysis[spec].value[sort_idx[i]]) )
+                actual_k_values.append(analysis[spec].kgrid[sort_idx[i]])
 
+
+    # import pdb; pdb.set_trace()
+
+    print("Actual kgrid:", actual_k_values)
+    tgrid = np.array(tgrid, dtype=int)
+    taus = _extract_tau(fks, tgrid)
+    print("tau:", taus)
 
     if out_file:
         columns = (tgrid,)
@@ -536,6 +570,19 @@ def calculate_self_intermediate_scattering_function(traj_file, k_values, out_fil
         columns = np.column_stack(columns)
         np.savetxt(out_file, columns, fmt=fmt, header=header)
 
+
+    if out_file_quantities:
+        header = "# columns="
+        data = ""
+        for spec_i, spec in enumerate(species):
+            header += "tau_%s,q_%s," % (spec, spec)
+            data += "%.6g %.3g " % (taus[spec_i], actual_k_values[spec_i])
+        header += "\n"
+        data += "\n"
+
+        with open(out_file_quantities, "w") as f:
+            f.write(header)
+            f.write(data)
 
 
 def calculate_correlator_1d(ts, values):
@@ -612,9 +659,10 @@ def setup_output_folders(base_folder):
     make_nested_dir(log_folder)
     traj_file = os.path.join(traj_folder, "trajectory.gsd")
     qty_file = os.path.join(log_folder, "quantities.dat")
+    state_file = os.path.join(log_folder, "state.dat")
     final_state_file = os.path.join(traj_folder, "final_state.gsd")
 
-    return traj_file, qty_file, final_state_file
+    return traj_file, qty_file, final_state_file, state_file
 
 
 def setup_3d_ipl():
