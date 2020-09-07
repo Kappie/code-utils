@@ -168,7 +168,7 @@ class ForceShiftedLJ(Model):
     name = "force_shifted_lj"
     folder_name = "force_shifted_lj"
 
-    def setup(self, r_cut):
+    def setup(self, r_cut=2.5):
         # Neighbor list.
         nl = md.nlist.cell()
 
@@ -180,6 +180,9 @@ class ForceShiftedLJ(Model):
         lj.pair_coeff.set('A', 'A', sigma=sigmaAA, epsilon=epsilon, r_cut=r_cut)
 
         self.neighbor_list = nl
+
+    def get_dt(self):
+        return 0.005
 
 models = {
     'ipl': IPL,
