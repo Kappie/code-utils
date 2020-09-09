@@ -27,6 +27,8 @@ from collections import namedtuple
 from dataclasses import dataclass
 
 
+HOOMD_TIME_STEP_LIMIT = 2139049745
+
 
 def log_period(block_size, base=2):
     def period(n):
@@ -377,17 +379,24 @@ def calculate_msd(traj_file, num_partitions=1, out_file=None, out_file_quantitie
         header = "columns=step,"
         tau_D = np.zeros((num_partitions, len(species)))
         D = np.zeros((num_partitions, len(species)))
+        min_signal_len = np.inf
         for n in range(num_partitions):
             for spec_i, spec in enumerate(species):
                 columns += (msds[n][spec_i],)
+                signal_length = len(columns[-1])
+                if signal_length < min_signal_len:
+                    min_signal_len = signal_length
                 fmt += " %.8g"
                 header += "msd_partition%d_species%s," % (n + 1, spec)
                 tau_D[n, spec_i] = derived_quantities[n][spec_i].get('diffusive time tau_D', 0.0)
                 D[n, spec_i] = derived_quantities[n][spec_i].get('diffusion coefficient D', 0.0)
 
-        header = header[:-1]    # remove final comma.
+        new_columns = ()
+        for i in range( len(columns) ):
+            new_columns += (columns[i][:min_signal_len],)
 
-        columns = np.column_stack(columns)
+        header = header[:-1]    # remove final comma.
+        columns = np.column_stack(new_columns)
         np.savetxt(out_file, columns, fmt=fmt, header=header)
 
     if out_file_quantities:

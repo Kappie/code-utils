@@ -67,7 +67,7 @@ class StickySpheres(Model):
     default_rho = 0.6
     name = 'sticky_spheres'
     dt = {1.2: 0.001, 0.95: 0.002, 0.80: 0.003, 0.70: 0.003, 0.60: 0.005}
-    qmax = {0.95: [7.35, 6.4], 0.80: [6.86, 6.06], 0.70: [6.86, 5.87]}
+    qmax = {0.95: [7.35, 6.4], 0.80: [6.86, 6.06], 0.70: [6.86, 5.87], 0.60: [6.45, 5.47]}
 
     def setup(self):
         nl = md.nlist.cell()
@@ -94,6 +94,7 @@ class StickySpheres2D(StickySpheres):
     name = '2d_sticky_spheres'
     folder_name = 'sticky_spheres'
     dim = 2
+    dt = {0.67: 0.005}
 
     def setup(self):
         md.update.enforce2d()
