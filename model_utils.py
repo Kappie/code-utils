@@ -9,7 +9,7 @@ class Model(object):
     dim = 3
     folder_name = None
 
-    def __init__(self, T, rho=None):
+    def __init__(self, T=None, rho=None):
         self.T = T
         if rho == None:
             self.rho = self.default_rho
@@ -67,7 +67,7 @@ class StickySpheres(Model):
     default_rho = 0.6
     name = 'sticky_spheres'
     dt = {1.2: 0.001, 0.95: 0.002, 0.80: 0.003, 0.70: 0.003, 0.60: 0.005}
-    qmax = {0.95: [7.35, 6.4], 0.80: [6.86, 6.06], 0.70: [6.86, 5.87], 0.60: [6.45, 5.47]}
+    qmax = {0.95: [7.35, 6.4], 0.80: [6.86, 6.06], 0.70: [6.86, 5.87]}
 
     def setup(self):
         nl = md.nlist.cell()
@@ -94,7 +94,6 @@ class StickySpheres2D(StickySpheres):
     name = '2d_sticky_spheres'
     folder_name = 'sticky_spheres'
     dim = 2
-    dt = {0.67: 0.005}
 
     def setup(self):
         md.update.enforce2d()
@@ -152,6 +151,8 @@ class IPLMono(Model):
         self.neighbor_list = nl
 
 
+
+
 class IPLMono2D(IPLMono):
     name = '2dipl_mono'
     folder_name = 'ipl_mono'
@@ -163,6 +164,26 @@ class IPLMono2D(IPLMono):
         super().setup()
 
 
+class ForceShiftedLJ(Model):
+    name = "force_shifted_lj"
+    folder_name = "force_shifted_lj"
+
+    def setup(self, r_cut=2.5):
+        # Neighbor list.
+        nl = md.nlist.cell()
+
+        # LJ interactions.
+        epsilon = 1.0
+        sigmaAA = 1.0;
+
+        lj = md.pair.force_shifted_lj(nlist=nl, r_cut=r_cut)
+        lj.pair_coeff.set('A', 'A', sigma=sigmaAA, epsilon=epsilon, r_cut=r_cut)
+
+        self.neighbor_list = nl
+
+    def get_dt(self):
+        return 0.005
+
 models = {
     'ipl': IPL,
     '2dipl': IPL2D,
@@ -171,5 +192,6 @@ models = {
     'hertzian': Hertzian,
     'ipl_mono': IPLMono,
     '2dipl_mono': IPLMono2D,
+    'force_shifted_lj': ForceShiftedLJ
 }
 
