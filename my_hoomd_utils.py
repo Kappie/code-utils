@@ -321,8 +321,18 @@ def detect_base_and_max_exp(steps):
         n += 1
 
     max_exp = n - 2 
+    block_length = max_exp + 1
+    block_size = int(base ** max_exp)
 
-    return base, max_exp
+    # Now, correct the time steps of subsequent simulation chunks.
+    start_chunks = np.nonzero(steps == 0)[0][1:]    # Throw away first start, which is always at index 0.
+    chunk_length = start_chunks[0]
+    chunk_size = (chunk_length // block_length) * block_size  # This assumes a simulation chunk is always an integer multiple of block_size.
+    corrected_steps = np.copy(steps)
+    for start_index in start_chunks:
+        corrected_steps[start_index:] += chunk_size
+
+    return base, max_exp, corrected_steps
 
 def truncate_trajectory_after_final_whole_block(traj):
     base, max_exp = detect_base_and_max_exp(traj.steps)
@@ -340,7 +350,8 @@ def calculate_msd(traj_file, num_partitions=1, out_file=None, out_file_quantitie
     tgrid = None
 
     with atooms.trajectory.Trajectory(traj_file) as traj:
-        base, max_exp = detect_base_and_max_exp(traj.steps)
+        base, max_exp, corrected_steps = detect_base_and_max_exp(traj.steps)
+        traj.steps = corrected_steps.tolist()
         block_size = int(base ** max_exp)
         print("detected a logarithmically spaced trajectory with block_size %d ** %d. Num frames in block: %d" % (base, max_exp, traj.block_size))
         nframes = len(traj)
@@ -526,10 +537,11 @@ def calculate_self_intermediate_scattering_function(traj_file, k_values, out_fil
     k_values = k_values[sort_idx]
 
     with atooms.trajectory.Trajectory(traj_file) as traj:
-        # traj = truncate_trajectory_after_final_whole_block(traj)
+
+        base, max_exp, corrected_steps = detect_base_and_max_exp(traj.steps)
+        traj.steps = corrected_steps.tolist()
         num_frames = len(traj.steps)
-        base, max_exp = detect_base_and_max_exp(traj.steps)
-        traj = Sliced(traj, slice(0, 255*(max_exp) + 1))    # super weird bug in hoomd where it fucks up the period after 256 blocks?
+        # traj = Sliced(traj, slice(0, 255*(max_exp) + 1))    # super weird bug in hoomd where it fucks up the period after 256 blocks?
         block_size = int(base ** max_exp)
         species = traj[0].distinct_species()
         print("detected a logarithmically spaced trajectory of %d frames with block_size %d ** %d = %d" % (num_frames, base, max_exp, block_size))
