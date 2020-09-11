@@ -168,16 +168,19 @@ class ForceShiftedLJ(Model):
     name = "force_shifted_lj"
     folder_name = "force_shifted_lj"
 
-    def setup(self, r_cut=2.5):
+    def setup(self):
         # Neighbor list.
         nl = md.nlist.cell()
 
-        # LJ interactions.
-        epsilon = 1.0
-        sigmaAA = 1.0;
+        # modified KA interactions.
+        epsilonAA = 1.0; sigmaAA = 1.0; r_cutAA = 1.5
+        epsilonAB = 1.5; sigmaAB = 0.8; r_cutAB = 2.0
+        epsilonBB = 0.5; sigmaBB = 0.88; r_cutBB = 1.5
 
-        lj = md.pair.force_shifted_lj(nlist=nl, r_cut=r_cut)
-        lj.pair_coeff.set('A', 'A', sigma=sigmaAA, epsilon=epsilon, r_cut=r_cut)
+        lj = md.pair.force_shifted_lj(nlist=nl, r_cut=r_cutAA)
+        lj.pair_coeff.set('A', 'A', sigma=sigmaAA, epsilon=epsilonAA, r_cut=r_cutAA)
+        lj.pair_coeff.set('A', 'B', sigma=sigmaAB, epsilon=epsilonAB, r_cut=r_cutAB)
+        lj.pair_coeff.set('B', 'B', sigma=sigmaBB, epsilon=epsilonBB, r_cut=r_cutBB)
 
         self.neighbor_list = nl
 
