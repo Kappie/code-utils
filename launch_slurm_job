@@ -1,0 +1,82 @@
+#!/usr/bin/env python
+import os
+import numpy as np
+import argparse
+from datetime import datetime
+from shutil import copyfile
+import subprocess
+
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--script", type=str, required=True, help='Path to script.')
+parser.add_argument('--script_args', type=str)
+parser.add_argument('--executable', type=str, required=False, help="If script is already an executable, do not supply. If supplied e.g. `python', will call 'python <script>'.")
+parser.add_argument("--mem", type=str, required=True)
+parser.add_argument("--time", type=str, required=True)
+parser.add_argument("--job_name", type=str, required=True)
+parser.add_argument("--partition", type=str, default='lln', help="")
+parser.add_argument("--cores", type=int, required=False, help="Number of cores to parallelize script. Do not supply if script is not single-core. serial_start is required when supplying this.")
+parser.add_argument("--serial_start", type=int, required=False, help="Index to supply to parallelized scripts. Will supply serial_start, serial_start, + 1, ... serial_start + cores - 1 to script as a last argument.")
+
+args = parser.parse_args()
+script = args.script
+script_args = args.script_args
+executable = args.executable
+mem = args.mem
+time = args.time
+job_name = args.job_name
+partition = args.partition
+cores = args.cores
+if cores:
+	serial_start = args.serial_start
+	serial_end = serial_start + cores - 1 # range of bash is inclusive, see below.
+
+now_string = datetime.now().isoformat()
+outdir = os.path.join(os.environ.get("OUT_DIR"), job_name)
+# Make outdir
+os.makedirs(outdir, exist_ok=True)
+
+outfile = os.path.join(outdir, job_name + ".out")
+errfile = os.path.join(outdir, job_name + ".err")
+job_file = os.path.join(outdir, job_name + ".%s.copy" % now_string)
+
+if executable:
+    launch_command = "%s %s" % (executable, script)
+else:
+    launch_command = script
+
+if script_args:
+	launch_command += " %s" % (script_args)
+
+if cores:
+	command_string = \
+"""#!/bin/bash
+for i in `seq %d %d`; do
+	%s $i > %s/$i.out &
+done
+wait
+""" % (serial_start, serial_end, launch_command, outdir)
+else:
+	command_string = """#!/bin/bash
+	%s
+	""" % (launch_command)
+
+with open(job_file, "w") as f:
+   f.write(command_string)
+
+os.system("chmod +x %s" % job_file)
+
+print(command_string)
+sbatch_command = "sbatch --mem=%s --time=%s --job-name=%s --partition=%s --output=%s --error=%s %s" % (mem, time, job_name, partition, outfile, errfile, job_file)
+# os.system(sbatch_command)
+result = subprocess.run(sbatch_command, capture_output=True, shell=True)
+if result.stderr:
+	raise RuntimeError(result.stderr)
+
+job_id = int(result.stdout.split()[-1])
+print(job_id)
+script_copy = os.path.join(outdir, os.path.basename(script) + ".%d.copy" % job_id)
+
+# Copy script for reference.
+copyfile(script, script_copy)
