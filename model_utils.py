@@ -59,7 +59,7 @@ class IPL2D(IPL):
     def setup(self):
         md.update.enforce2d()
         super().setup()
-        
+
 
 
 class StickySpheres(Model):

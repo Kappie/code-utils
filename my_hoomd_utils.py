@@ -326,11 +326,13 @@ def detect_base_and_max_exp(steps):
 
     # Now, correct the time steps of subsequent simulation chunks.
     start_chunks = np.nonzero(steps == 0)[0][1:]    # Throw away first start, which is always at index 0.
-    chunk_length = start_chunks[0]
-    chunk_size = (chunk_length // block_length) * block_size  # This assumes a simulation chunk is always an integer multiple of block_size.
     corrected_steps = np.copy(steps)
-    for start_index in start_chunks:
-        corrected_steps[start_index:] += chunk_size
+    if start_chunks:
+        chunk_length = start_chunks[0]
+        chunk_size = (chunk_length // block_length) * block_size  # This assumes a simulation chunk is always an integer multiple of block_size.
+        corrected_steps = np.copy(steps)
+        for start_index in start_chunks:
+            corrected_steps[start_index:] += chunk_size
 
     return base, max_exp, corrected_steps
 
