@@ -267,6 +267,11 @@ def read_trajectory_xyz(traj_file):
 
 
 def read_trajectory(traj_file, frame=0, unfold=False):
+    # Unzip if it is a compressed format
+    file_extension = splitext(traj_file)[1]
+    if file_extension == ".gz":
+        subprocess.run(["gzip", "--decompress", "--keep", "--force", traj_file])
+        traj_file = splitext(traj_file)[0]
 
     with atooms.trajectory.Trajectory(traj_file) as traj:
         num_frames = len(traj)
@@ -310,6 +315,10 @@ def read_trajectory(traj_file, frame=0, unfold=False):
     snap = {'step': step, 'npart': N, 'pos': pos, 'ptypes': typeid, 'box': box}
     if unfold:
         snap['pos_unf'] = pos_unf
+
+    # Remove unzipped file.
+    if file_extension == ".gz":
+        os.remove(traj_file)
 
     return snap, num_frames
 
