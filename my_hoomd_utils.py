@@ -27,7 +27,7 @@ from collections import namedtuple
 from dataclasses import dataclass
 
 
-HOOMD_TIME_STEP_LIMIT = 2139049745
+HOOMD_TIME_STEP_LIMIT = 1000000000
 
 
 def log_period(block_size, base=2):
@@ -327,7 +327,7 @@ def detect_base_and_max_exp(steps):
     # Now, correct the time steps of subsequent simulation chunks.
     start_chunks = np.nonzero(steps == 0)[0][1:]    # Throw away first start, which is always at index 0.
     corrected_steps = np.copy(steps)
-    if start_chunks:
+    if start_chunks.size != 0:
         chunk_length = start_chunks[0]
         chunk_size = (chunk_length // block_length) * block_size  # This assumes a simulation chunk is always an integer multiple of block_size.
         corrected_steps = np.copy(steps)
@@ -684,8 +684,10 @@ def setup_output_folders(base_folder):
     qty_file = os.path.join(log_folder, "quantities.dat")
     state_file = os.path.join(log_folder, "state.dat")
     final_state_file = os.path.join(traj_folder, "final_state.gsd")
+    restart_file = os.path.join(traj_folder, r"restart%d.gsd")
 
-    return traj_file, qty_file, final_state_file, state_file
+
+    return traj_file, qty_file, final_state_file, state_file, restart_file
 
 
 def setup_3d_ipl():
