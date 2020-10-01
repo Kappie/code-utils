@@ -95,6 +95,8 @@ class StickySpheres2D(StickySpheres):
     folder_name = 'sticky_spheres'
     dim = 2
 
+    dt = {0.67: 0.005}
+
     def setup(self):
         md.update.enforce2d()
         super().setup()
