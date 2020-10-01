@@ -43,7 +43,7 @@ def log_period(block_size, base=2):
     return period
 
 
-def dump_hoomd_snapshot_to_xyz(snap, filename, save_velocity=False, save_force=False, step=0, write_mode="w"):
+def dump_hoomd_snapshot_to_xyz(snap, filename, save_velocity=False, save_force=False, step=0, write_mode="w", compress=True):
     pos = snap.particles.position
     im = snap.particles.image
     N = pos.shape[0]
@@ -75,6 +75,11 @@ def dump_hoomd_snapshot_to_xyz(snap, filename, save_velocity=False, save_force=F
         f.write(comment_line)
 
         np.savetxt(f, data, fmt=fmt)
+
+    if compress:
+        subprocess.run(["gzip", "--verbose", filename])
+
+
 
 
 def hoomd_snapshot_to_gsd_frame(snap, step=0):
