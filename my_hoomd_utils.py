@@ -77,7 +77,7 @@ def dump_hoomd_snapshot_to_xyz(snap, filename, save_velocity=False, save_force=F
         np.savetxt(f, data, fmt=fmt)
 
     if compress:
-        subprocess.run(["gzip", "--verbose", filename])
+        subprocess.run(["gzip", "-f", filename])
 
 
 

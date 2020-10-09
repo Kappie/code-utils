@@ -16,7 +16,7 @@ import os
 import seaborn as sns
 from mpl_toolkits.mplot3d import Axes3D
 import io
-import cv2
+# import cv2
 
 from palettable.colorbrewer.diverging import RdYlBu_7
 
@@ -65,8 +65,7 @@ def init_fig(width=None, height=None, grid=(1,1), locs=None, colspans=None, rows
 
     params = {
         'text.usetex': True,
-        'text.latex.preamble': [r'\usepackage{physics}', r'\usepackage{amsmath}', r'\usepackage{cmbright}', '\DeclareMathOperator{\cdf}{CDF}', '\DeclareMathOperator{\pdf}{PDF}'],
-        'text.latex.preview': False,
+        'text.latex.preamble': "\\usepackage{physics}\n\\usepackage{amsmath}\n\\usepackage{cmbright}\n\\DeclareMathOperator{\\cdf}{CDF}\n\\DeclareMathOperator{\\pdf}{PDF}",
         'xtick.labelsize': label_font_size,
         'ytick.labelsize': label_font_size,
         'xtick.direction': 'in',
@@ -250,16 +249,17 @@ def add_labels(axes, style=r'(%s)', shift_x_em=0.0):
         fontsize = ax.yaxis.label.get_font_properties().get_size()
         ax.text(labelx, labely, labels[i], transform=transform, va='top', ha='left', fontsize=fontsize)
 
-# define a function which returns an image as numpy array from figure
-def fig_asarray(fig=plt.gcf(), dpi=180):
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=dpi)
-    buf.seek(0)
-    img_arr = np.frombuffer(buf.getvalue(), dtype=np.uint8)
-    buf.close()
-    img = cv2.imdecode(img_arr, 1)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-    return img
+# define a function which returns an image as numpy array from figure
+# def fig_asarray(fig=plt.gcf(), dpi=180):
+#     buf = io.BytesIO()
+#     fig.savefig(buf, format="png", dpi=dpi)
+#     buf.seek(0)
+#     img_arr = np.frombuffer(buf.getvalue(), dtype=np.uint8)
+#     buf.close()
+#     img = cv2.imdecode(img_arr, 1)
+#     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+#     return img
 
 
