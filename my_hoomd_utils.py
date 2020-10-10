@@ -44,6 +44,9 @@ def log_period(block_size, base=2):
 
 
 def dump_hoomd_snapshot_to_xyz(snap, filename, save_velocity=False, save_force=False, step=0, write_mode="w", compress=True):
+    if write_mode[0] == "a":
+        compress = False
+
     pos = snap.particles.position
     im = snap.particles.image
     N = pos.shape[0]
