@@ -353,6 +353,56 @@ def detect_base_and_max_exp(steps):
 
     return base, max_exp, corrected_steps
 
+def detect_and_fix_spacing(steps):
+    """
+    This can detect linear and logarithmic spacing, and corrects the resetting of steps that occurs if a simulation consists of multiple chunks.
+    """
+    # Always start at 0.
+    steps = np.asarray(steps)
+    steps -= steps[0]
+
+    diff1 = steps[2] - steps[1]
+    diff2 = steps[3] - steps[2]
+
+    result = {}
+
+    if diff1 == diff2:
+        result["mode"] = "linear"
+        result["spacing"] = diff1
+    else:
+        result["mode"] = "log"
+
+        base = steps[2] / steps[1]
+
+        n = 1
+        while steps[n] == base ** (n-1):
+            n += 1
+
+        max_exp = n - 2 
+        block_length = max_exp + 1
+        block_size = int(base ** max_exp)
+
+        result["base"] = base
+        result["max_exp"] = max_exp
+
+    # Now, correct the time steps of subsequent simulation chunks.
+    start_chunks = np.nonzero(steps == 0)[0][1:]    # Throw away first start, which is always at index 0.
+    corrected_steps = np.copy(steps)
+    if start_chunks.size != 0:
+        chunk_length = start_chunks[0]
+        if result["mode"] == "log":
+            chunk_size = (chunk_length // block_length) * block_size  # This assumes a simulation chunk is always an integer multiple of block_size.
+        else:
+            chunk_size = chunk_length * result["spacing"]
+
+        for start_index in start_chunks:
+            corrected_steps[start_index:] += chunk_size
+
+    result["corrected_steps"] = corrected_steps
+
+    return result
+
+
 def truncate_trajectory_after_final_whole_block(traj):
     base, max_exp = detect_base_and_max_exp(traj.steps)
     num_frames = len(traj.steps)
@@ -369,25 +419,39 @@ def calculate_msd(traj_file, num_partitions=1, out_file=None, out_file_quantitie
     tgrid = None
 
     with atooms.trajectory.Trajectory(traj_file) as traj:
-        base, max_exp, corrected_steps = detect_base_and_max_exp(traj.steps)
-        traj.steps = corrected_steps.tolist()
-        block_size = int(base ** max_exp)
-        print("detected a logarithmically spaced trajectory with block_size %d ** %d. Num frames in block: %d" % (base, max_exp, traj.block_size))
         nframes = len(traj)
         frames_per_partition = nframes // num_partitions
         print("number of frames to analyze: %d" % nframes)
         species = traj[0].distinct_species()
         print("Detected %d different species, " % len(species), species)
+        # base, max_exp, corrected_steps = detect_base_and_max_exp(traj.steps)
+        result = detect_and_fix_spacing(traj.steps)
+        corrected_steps = result["corrected_steps"]
+        traj.steps = corrected_steps.tolist()
+        mode = result["mode"]
+        if mode == "log":
+            base = result["base"]
+            max_exp = result["max_exp"]
+            block_size = int(base ** max_exp)
+            print("detected a logarithmically spaced trajectory with block_size %d ** %d. Num frames in block: %d" % (base, max_exp, traj.block_size))
+        elif mode == "linear":
+            spacing = result["spacing"]
+            print("Detected a linearly spaced trajectory with spacing %d" % (spacing))
+
         for n in range(num_partitions):
             print("starting with partition %d/%d" % (n+1, num_partitions))
             subtraj = Sliced(traj, slice(n*frames_per_partition, (n+1)*frames_per_partition))
-            tmin = subtraj.steps[0]
-            tmax = subtraj.steps[-1]
-            nblocks = (tmax - tmin) // block_size
-            # tgrid the same for each tranche. 
-            if not tgrid:
-                tgrid = [base**m for m in range(0, max_exp)] + [float(m*block_size) for m in range(1, int(nblocks//2))]
-            # analysis = pp.MeanSquareDisplacement(subtraj, tgrid=tgrid)
+            if mode == "log":
+                tmin = subtraj.steps[0]
+                tmax = subtraj.steps[-1]
+                nblocks = (tmax - tmin) // block_size
+                # tgrid the same for each tranche. 
+                if not tgrid:
+                    tgrid = [base**m for m in range(0, max_exp)] + [float(m*block_size) for m in range(1, int(nblocks//2))]
+            elif mode == "linear":
+                if not tgrid:
+                    tgrid = subtraj.steps
+
             analysis = pp.Partial(pp.MeanSquareDisplacement, trajectory=subtraj, tgrid=tgrid, species=species)
             analysis.do()
             analysis = analysis.partial # Dict with results for each species
@@ -494,6 +558,8 @@ def calculate_structure_factor(traj_file, out_file=None, **kwargs):
     with atooms.trajectory.Trajectory(traj_file) as traj:
         species = traj[0].distinct_species()
 
+        # __import__('pdb').set_trace()
+        # analysis = pp.StructureFactor(traj, **kwargs)
         analysis = pp.Partial(pp.StructureFactor, trajectory=traj, species=species, **kwargs)
         analysis.do()
         analysis = analysis.partial # Dict with results for each species
@@ -556,27 +622,36 @@ def calculate_self_intermediate_scattering_function(traj_file, k_values, out_fil
     k_values = k_values[sort_idx]
 
     with atooms.trajectory.Trajectory(traj_file) as traj:
-
-        base, max_exp, corrected_steps = detect_base_and_max_exp(traj.steps)
-        traj.steps = corrected_steps.tolist()
-        num_frames = len(traj.steps)
-        # traj = Sliced(traj, slice(0, 255*(max_exp) + 1))    # super weird bug in hoomd where it fucks up the period after 256 blocks?
-        block_size = int(base ** max_exp)
+        nframes = len(traj.steps)
         species = traj[0].distinct_species()
-        print("detected a logarithmically spaced trajectory of %d frames with block_size %d ** %d = %d" % (num_frames, base, max_exp, block_size))
         print("Using q_values", unsorted_k_values, "for species", species)
-        nframes = len(traj)
-        tmin = traj.steps[0]
-        tmax = traj.steps[-1]
-        nblocks = (tmax - tmin) // block_size
-        tgrid = [0] + [base**m for m in range(0, max_exp)] + [float(2**m*block_size) for m in range(0, int(np.floor(np.log2(nblocks//2))) + 1)]
+
+        result = detect_and_fix_spacing(traj.steps)
+        corrected_steps = result["corrected_steps"]
+        traj.steps = corrected_steps.tolist()
+        mode = result["mode"]
+        if mode == "log":
+            base = result["base"]
+            max_exp = result["max_exp"]
+            block_size = int(base ** max_exp)
+            print("detected a logarithmically spaced trajectory with block_size %d ** %d. Num frames in block: %d" % (base, max_exp, traj.block_size))
+        elif mode == "linear":
+            spacing = result["spacing"]
+
+        if mode == "log":
+            tmin = traj.steps[0]
+            tmax = traj.steps[-1]
+            nblocks = (tmax - tmin) // block_size
+            # tgrid the same for each tranche. 
+            tgrid = [base**m for m in range(0, max_exp)] + [float(m*block_size) for m in range(1, int(nblocks//2))]
+        elif mode == "linear":
+            tgrid = traj.steps
 
         # I don't know how to tell the library to compute a different q value for each species.
         # I just compute both q values for each species. Not very efficient.
         analysis = pp.Partial(pp.SelfIntermediateScattering, trajectory=traj, species=species, tgrid=tgrid, kgrid=k_values, **kwargs)
         analysis.do()
         analysis = analysis.partial # Dict with results for each species
-
 
         fks = []
         actual_k_values = []
@@ -589,8 +664,6 @@ def calculate_self_intermediate_scattering_function(traj_file, k_values, out_fil
                 fks.append( np.array(analysis[spec].value[sort_idx[i]]) )
                 actual_k_values.append(analysis[spec].kgrid[sort_idx[i]])
 
-
-    # import pdb; pdb.set_trace()
 
     print("Actual kgrid:", actual_k_values)
     tgrid = np.array(tgrid, dtype=int)

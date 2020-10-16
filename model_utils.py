@@ -32,7 +32,10 @@ class IPL(Model):
         else:
             return 0.0025
 
-    def setup(self):
+    def setup(self, types=None):
+        if not types:
+            types = self.particle_types
+
         # Neighbor list.
         nl = md.nlist.cell()
 
@@ -43,9 +46,9 @@ class IPL(Model):
         rcutAA = xcut * sigmaAA; rcutAB = xcut * sigmaAB; rcutBB = xcut * sigmaBB;
 
         ipl = md.pair.ipl_edan(nlist=nl, r_cut=rcutAA)
-        ipl.pair_coeff.set('A', 'A', sigma=sigmaAA, epsilon=epsilon, r_cut=rcutAA)
-        ipl.pair_coeff.set('A', 'B', sigma=sigmaAB, epsilon=epsilon, r_cut=rcutAB)
-        ipl.pair_coeff.set('B', 'B', sigma=sigmaBB, epsilon=epsilon, r_cut=rcutBB)
+        ipl.pair_coeff.set(types[0], types[0], sigma=sigmaAA, epsilon=epsilon, r_cut=rcutAA)
+        ipl.pair_coeff.set(types[0], types[1], sigma=sigmaAB, epsilon=epsilon, r_cut=rcutAB)
+        ipl.pair_coeff.set(types[1], types[1], sigma=sigmaBB, epsilon=epsilon, r_cut=rcutBB)
 
         self.neighbor_list = nl
 
@@ -56,9 +59,9 @@ class IPL2D(IPL):
     default_rho = 0.86
     dim = 2
 
-    def setup(self):
+    def setup(self, types=None):
         md.update.enforce2d()
-        super().setup()
+        super().setup(types=types)
 
 
 
@@ -69,7 +72,10 @@ class StickySpheres(Model):
     dt = {1.2: 0.001, 0.95: 0.002, 0.80: 0.003, 0.70: 0.003, 0.60: 0.005}
     qmax = {0.95: [7.35, 6.4], 0.80: [6.86, 6.06], 0.70: [6.86, 5.87]}
 
-    def setup(self):
+    def setup(self, types=None):
+        if not types:
+            types = self.particle_types
+
         nl = md.nlist.cell()
 
         x_cut = 2**(1/6) * 1.2
@@ -77,9 +83,9 @@ class StickySpheres(Model):
         rcutAA = sigmaAA*x_cut; rcutAB = sigmaAB*x_cut; rcutBB = sigmaBB*x_cut;
 
         sticky = md.pair.sticky_spheres(nlist=nl, r_cut=rcutBB)
-        sticky.pair_coeff.set('A', 'A', sigma=sigmaAA, r_cut=rcutAA)
-        sticky.pair_coeff.set('A', 'B', sigma=sigmaAB, r_cut=rcutAB)
-        sticky.pair_coeff.set('B', 'B', sigma=sigmaBB, r_cut=rcutBB)
+        sticky.pair_coeff.set(types[0], types[0], sigma=sigmaAA, r_cut=rcutAA)
+        sticky.pair_coeff.set(types[0], types[1], sigma=sigmaAB, r_cut=rcutAB)
+        sticky.pair_coeff.set(types[1], types[1], sigma=sigmaBB, r_cut=rcutBB)
 
         self.neighbor_list = nl
 
@@ -187,7 +193,10 @@ class ForceShiftedLJ(Model):
         self.neighbor_list = nl
 
     def get_dt(self):
-        return 0.005
+        if self.T < 1.:
+            return 0.005
+        else:
+            return 0.002
 
 models = {
     'ipl': IPL,
