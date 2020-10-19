@@ -545,7 +545,7 @@ def calculate_radial_distribution_function(traj_file, out_file=None):
     # subprocess.run(["rm", traj_file])
 
 
-def calculate_structure_factor(traj_file, out_file=None, **kwargs):
+def calculate_structure_factor(traj_file, out_file=None, mode="separate_species", **kwargs):
     """
     Assume trajectory has format .xyz.gz
     Writes the first peak of the structure factor for each species in out_file_kmax.
@@ -556,37 +556,43 @@ def calculate_structure_factor(traj_file, out_file=None, **kwargs):
     # traj_file = splitext(traj_file)[0]
 
     with atooms.trajectory.Trajectory(traj_file) as traj:
-        species = traj[0].distinct_species()
+        if mode == "separate_species":
 
-        # __import__('pdb').set_trace()
-        # analysis = pp.StructureFactor(traj, **kwargs)
-        analysis = pp.Partial(pp.StructureFactor, trajectory=traj, species=species, **kwargs)
-        analysis.do()
-        analysis = analysis.partial # Dict with results for each species
+            species = traj[0].distinct_species()
+            analysis = pp.Partial(pp.StructureFactor, trajectory=traj, species=species, **kwargs)
+            analysis.do()
+            analysis = analysis.partial # Dict with results for each species
 
-        sks = []
-        ks = analysis[(species[0], species[0])].grid    # Grid is the same for every combination.
-        for spec1 in species:
-            for spec2 in species:
-                sks.append(analysis[(spec1, spec2)].value)
+            sks = []
+            ks = analysis[(species[0], species[0])].grid    # Grid is the same for every combination.
+            for spec1 in species:
+                for spec2 in species:
+                    sks.append(analysis[(spec1, spec2)].value)
+        elif mode == "mix_species":
+            analysis = pp.StructureFactorLegacy(traj, **kwargs)
+            analysis.do()
+
 
     if out_file:
-        columns = (ks,)
-        fmt = "%.5g"
-        header = "columns=k,"
-        counter = 0
-        for i, spec1 in enumerate(species):
-            for j, spec2 in enumerate(species):
-                columns += (sks[counter],)
-                fmt += " %.8g"
-                header += "Sk_%s-%s," % (spec1, spec2)
-                counter += 1
-        header = header[:-1]    # remove final comma.
+        if mode == "separate_species":
+            columns = (ks,)
+            fmt = "%.5g"
+            header = "columns=k,"
+            counter = 0
+            for i, spec1 in enumerate(species):
+                for j, spec2 in enumerate(species):
+                    columns += (sks[counter],)
+                    fmt += " %.8g"
+                    header += "Sk_%s-%s," % (spec1, spec2)
+                    counter += 1
+            header = header[:-1]    # remove final comma.
+        elif mode == "mix_species":
+            columns = (analysis.grid, analysis.value)
+            fmt = "%.5g %.5g"
+            header = "columns=k,S"
 
         columns = np.column_stack(columns)
         np.savetxt(out_file, columns, fmt=fmt, header=header)
-
-    return ks
 
 def _extract_tau(fks, t):
     cutoff = 0.2
