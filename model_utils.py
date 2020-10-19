@@ -103,9 +103,9 @@ class StickySpheres2D(StickySpheres):
 
     dt = {0.67: 0.005}
 
-    def setup(self):
+    def setup(self, types=None):
         md.update.enforce2d()
-        super().setup()
+        super().setup(types=types)
 
 
 class Hertzian(Model):
