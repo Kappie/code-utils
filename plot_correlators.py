@@ -152,7 +152,11 @@ if Sk:
     nice_plot(ax, k, Sk00, color=colors[0], label="AA", ls='-')
     nice_plot(ax, k, Sk01, color=colors[1], label="AB", ls='-')
     nice_plot(ax, k, Sk11, color=colors[2], label="BB", ls='-')
-    ax.set(xlabel="$k$", ylabel="Static Structure Factor")
+
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    top = np.max(Sk11[k > 0.4])
+    ax.set(xlabel="$k$", ylabel="Static Structure Factor", xlim=(0.4, xlim[1]), ylim=(ylim[0], 1.6*top))
     nice_legend(ax)
 
 # Self-part of intermediate scattering function.
