@@ -59,6 +59,8 @@ class IPL2D(IPL):
     default_rho = 0.86
     dim = 2
 
+    qmax = {0.86: [6.23, 5.91]}
+
     def setup(self, types=None):
         md.update.enforce2d()
         super().setup(types=types)
@@ -100,6 +102,8 @@ class StickySpheres2D(StickySpheres):
     name = '2d_sticky_spheres'
     folder_name = 'sticky_spheres'
     dim = 2
+
+    qmax = {0.67: [5.5, 5.18]}
 
     dt = {0.67: 0.005}
 

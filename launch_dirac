@@ -12,6 +12,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--script", type=str)
 parser.add_argument("--job_name", type=str)
 parser.add_argument("--octocore", action='store_true')
+parser.add_argument("--rtx2080ti", action='store_true')
 parser.add_argument("--cpu", action='store_true')
 parser.add_argument("--script_args", type=str)
 
@@ -22,6 +23,7 @@ script = args.script
 job_name = args.job_name
 script_args = args.script_args
 octocore = args.octocore
+rtx2080ti = args.rtx2080ti
 cpu = args.cpu
 
 out_dir = os.environ.get("OUT_DIR")
@@ -43,6 +45,8 @@ with open(launch_file, "w") as f:
 
 if octocore:
     cmd = "qsub -o %s -e %s -l nodes=1:octocore %s" % (out_file, err_file, launch_file)
+if rtx2080ti:
+    cmd = "qsub -o %s -e %s -l nodes=1:rtx2080ti %s" % (out_file, err_file, launch_file)
 elif cpu:
     cmd = "qsub -o %s -e %s -l nodes=1:ppn=1:lxxii-core %s" % (out_file, err_file, launch_file)
 else:
