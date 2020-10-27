@@ -17,6 +17,9 @@ from os.path import basename, dirname, splitext, join, exists
 from file_reading_functions import make_nested_dir
 from scipy.interpolate import interp1d
 
+from atooms.postprocessing.fourierspace import FourierSpaceCorrelation
+from atooms.trajectory import Trajectory
+
 try:
     import hoomd
     from hoomd import md
@@ -704,25 +707,69 @@ def calculate_self_intermediate_scattering_function(traj_file, k_values, out_fil
             f.write(data)
 
 
-def calculate_correlator_1d(ts, values):
-    base, max_exp = detect_base_and_max_exp(ts)
-    block_size = int(base ** max_exp)
-    tmin = ts[0]
-    tmax = ts[-1]
-    nblocks = (tmax - tmin) // block_size
-    num_frames_in_block = int(max_exp + 1)
-    tgrid = [base**m for m in range(0, max_exp)] + [float(2**m*block_size) for m in range(0, int(np.floor(np.log2(nblocks//2))) + 1)]
+def self_intermediate_scattering_function_particle_iso_avg(traj_file, k, start_pos, final_pos, **kwargs):
+    """
+    traj_file: is required to get box length, etc. (was not really necessary, but is convenient for now.)
+    final_pos: (N, dim, num_iso_runs) array
+    """
 
-    MockTrajectory = namedtuple('MockTrajectory', 'steps block_size timestep')
-    traj = MockTrajectory(ts, num_frames_in_block, 1)
-    offsets = pp.helpers.setup_t_grid(traj, tgrid)    
-    skip = pp.helpers.adjust_skip(traj, n_origins=-1)
+    tgrid = [0, 1]
+    kgrid = [k]
+    npart = start_pos.shape[0]
+    ndim = start_pos.shape[1]
+    num_iso_runs = final_pos.shape[0]
 
-    def autocorrelator(x, y):
-        return x*y
+    with Trajectory(traj_file, "r") as traj:
+        corr = FourierSpaceCorrelation(trajectory=traj, grid=[kgrid, tgrid], **kwargs)
 
-    grid, corr = pp.correlation.gcf_offset(autocorrelator, offsets, skip, ts, values)
-    return grid, corr
+    corr.kgrid = kgrid
+
+    # Setup grid once. If cell changes we'll call it again
+    corr._setup()
+    # Pick up a random, unique set of nk vectors out of the available ones
+    # without exceeding maximum number of vectors in shell nkmax
+    corr.kgrid, corr.selection = corr._decimate_k()
+    # We redefine the grid because of slight differences on the
+    # average k norms appear after decimation.
+    corr.kgrid = corr._actual_k_grid()
+    # We must fix the keys: just pop them to the their new positions
+    # We sort both of them (better check len's)
+    for k, kv in zip(sorted(corr.kgrid), sorted(corr.kvector)):
+        corr.kvector[k] = corr.kvector.pop(kv)
+
+    kvectors = corr.kvectors[corr.kgrid[0]]
+    nk_actual = len(kvectors)
+
+
+    result = np.zeros((nk_actual, num_iso_runs, npart))
+    for k_idx, k in enumerate(kvectors):
+        result[k_idx, :, :] = np.cos( np.dot(final_pos[:, :, :] - start_pos, k) )
+
+    # Average over different k vectors.
+    result = np.mean(result, axis=0)
+
+    return result
+
+
+# def calculate_correlator_1d(ts, values):
+#     base, max_exp = detect_base_and_max_exp(ts)
+#     block_size = int(base ** max_exp)
+#     tmin = ts[0]
+#     tmax = ts[-1]
+#     nblocks = (tmax - tmin) // block_size
+#     num_frames_in_block = int(max_exp + 1)
+#     tgrid = [base**m for m in range(0, max_exp)] + [float(2**m*block_size) for m in range(0, int(np.floor(np.log2(nblocks//2))) + 1)]
+
+#     MockTrajectory = namedtuple('MockTrajectory', 'steps block_size timestep')
+#     traj = MockTrajectory(ts, num_frames_in_block, 1)
+#     offsets = pp.helpers.setup_t_grid(traj, tgrid)    
+#     skip = pp.helpers.adjust_skip(traj, n_origins=-1)
+
+#     def autocorrelator(x, y):
+#         return x*y
+
+#     grid, corr = pp.correlation.gcf_offset(autocorrelator, offsets, skip, ts, values)
+#     return grid, corr
 
 
 
@@ -786,51 +833,3 @@ def setup_output_folders(base_folder):
     return traj_file, qty_file, final_state_file, state_file, restart_file
 
 
-def setup_3d_ipl():
-    # Neighbor list.
-    optimal_r_buff = 0.15   # workstation GPU, T = 0.53, N = 2000.
-    nl = md.nlist.cell(r_buff=optimal_r_buff)
-
-    # IPL interactions.
-    epsilon = 1.0
-    sigmaAA = 1.0; sigmaAB = 1.18; sigmaBB = 1.4;
-    xcut = 1.48
-    rcutAA = xcut * sigmaAA; rcutAB = xcut * sigmaAB; rcutBB = xcut * sigmaBB;
-
-    ipl = md.pair.ipl_edan(nlist=nl, r_cut=rcutAA)
-    ipl.pair_coeff.set('A', 'A', sigma=sigmaAA, epsilon=epsilon, r_cut=rcutAA)
-    ipl.pair_coeff.set('A', 'B', sigma=sigmaAB, epsilon=epsilon, r_cut=rcutAB)
-    ipl.pair_coeff.set('B', 'B', sigma=sigmaBB, epsilon=epsilon, r_cut=rcutBB)
-
-    return nl, ipl
-
-
-def setup_3d_sticky_spheres():
-    optimal_r_buff = 0.17   # workstation GPU, T = 0.77, N = 3000.
-    nl = md.nlist.cell(r_buff=optimal_r_buff)
-
-    x_cut = 2**(1/6) * 1.2
-    sigmaAA = 1.0; sigmaAB = 1.18; sigmaBB = 1.4;
-    rcutAA = sigmaAA*x_cut; rcutAB = sigmaAB*x_cut; rcutBB = sigmaBB*x_cut;
-
-    sticky = md.pair.sticky_spheres(nlist=nl, r_cut=rcutBB)
-    sticky.pair_coeff.set('A', 'A', sigma=sigmaAA, r_cut=rcutAA)
-    sticky.pair_coeff.set('A', 'B', sigma=sigmaAB, r_cut=rcutAB)
-    sticky.pair_coeff.set('B', 'B', sigma=sigmaBB, r_cut=rcutBB)
-
-    return nl, sticky
-
-def setup_3d_hertzian():
-
-    nl = md.nlist.cell()
-
-    rA = 0.5; rB = 0.7
-    sigmaAA = 2*rA; sigmaAB = rA + rB; sigmaBB = 2*rB;
-    rcutAA = sigmaAA; rcutAB = sigmaAB; rcutBB = sigmaBB;
-
-    herzian = md.pair.hertzian(nlist=nl, r_cut=rcutAA)
-    herzian.pair_coeff.set('A', 'A', sigma=sigmaAA, r_cut=rcutAA)
-    herzian.pair_coeff.set('A', 'B', sigma=sigmaAB, r_cut=rcutAB)
-    herzian.pair_coeff.set('B', 'B', sigma=sigmaBB, r_cut=rcutBB)
-
-    return nl, hertzian
