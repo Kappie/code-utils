@@ -643,7 +643,7 @@ def calculate_self_intermediate_scattering_function(traj_file, k_values, out_fil
             base = result["base"]
             max_exp = result["max_exp"]
             block_size = int(base ** max_exp)
-            print("detected a logarithmically spaced trajectory with block_size %d ** %d. Num frames in block: %d" % (base, max_exp, traj.block_size))
+            print("Detected a logarithmically spaced trajectory of %d frames with block_size %d ** %d. Num frames in block: %d" % (nframes, base, max_exp, traj.block_size))
         elif mode == "linear":
             spacing = result["spacing"]
 
