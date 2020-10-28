@@ -19,6 +19,9 @@ class Model(object):
         if self.folder_name is None:
             self.folder_name = self.name
 
+    def get_qmax(self):
+        return self.qmax[self.rho]
+
 
 
 class IPL(Model):
@@ -94,8 +97,6 @@ class StickySpheres(Model):
     def get_dt(self):
         return self.dt[self.rho]
 
-    def get_qmax(self):
-        return self.qmax[self.rho]
 
 
 class StickySpheres2D(StickySpheres):

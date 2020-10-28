@@ -710,7 +710,7 @@ def calculate_self_intermediate_scattering_function(traj_file, k_values, out_fil
 def self_intermediate_scattering_function_particle_iso_avg(traj_file, k, start_pos, final_pos, **kwargs):
     """
     traj_file: is required to get box length, etc. (was not really necessary, but is convenient for now.)
-    final_pos: (N, dim, num_iso_runs) array
+    final_pos: (num_iso_runs, N, dim) array
     """
 
     tgrid = [0, 1]
@@ -743,7 +743,7 @@ def self_intermediate_scattering_function_particle_iso_avg(traj_file, k, start_p
 
     result = np.zeros((nk_actual, num_iso_runs, npart))
     for k_idx, k in enumerate(kvectors):
-        result[k_idx, :, :] = np.cos( np.dot(final_pos[:, :, :] - start_pos, k) )
+        result[k_idx, :, :] = np.cos( np.dot(final_pos - start_pos, k) )
 
     # Average over different k vectors.
     result = np.mean(result, axis=0)
