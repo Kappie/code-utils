@@ -646,6 +646,7 @@ def calculate_self_intermediate_scattering_function(traj_file, k_values, out_fil
             print("Detected a logarithmically spaced trajectory of %d frames with block_size %d ** %d. Num frames in block: %d" % (nframes, base, max_exp, traj.block_size))
         elif mode == "linear":
             spacing = result["spacing"]
+            print("Detected a linearly spaced trajectory of %d frames with spacing %d." % (nframes, spacing))
 
         if mode == "log":
             tmin = traj.steps[0]
@@ -675,12 +676,13 @@ def calculate_self_intermediate_scattering_function(traj_file, k_values, out_fil
 
 
     print("Actual kgrid:", actual_k_values)
-    tgrid = np.array(tgrid, dtype=int)
-    taus = _extract_tau(fks, tgrid)
+    # For log-spaced trajectories, it automatically adds t = 0 for some reason.
+    actual_tgrid = np.array( analysis[species[0]].grid[1], dtype=int )
+    taus = _extract_tau(fks, actual_tgrid)
     print("tau:", taus)
 
     if out_file:
-        columns = (tgrid,)
+        columns = (actual_tgrid,)
         fmt = "%d"
         header = "columns=step,"
         for i, spec in enumerate(species):

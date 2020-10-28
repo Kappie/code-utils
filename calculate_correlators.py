@@ -74,5 +74,5 @@ if args.Fs:
 
     q_values =  model.get_qmax()
 
-    calculate_self_intermediate_scattering_function(traj_file, q_values, out_file=out_file_Fs, out_file_quantities=out_file_Fs_qty, nk=40, dk=0.05)
+    calculate_self_intermediate_scattering_function(traj_file, q_values, out_file=out_file_Fs, out_file_quantities=out_file_Fs_qty, nk=20, dk=0.05)
 
