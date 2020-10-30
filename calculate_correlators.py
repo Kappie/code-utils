@@ -8,7 +8,7 @@ import atooms
 import atooms.trajectory
 import gsd.hoomd
 
-from my_hoomd_utils import calculate_msd, calculate_radial_distribution_function, calculate_structure_factor, calculate_self_intermediate_scattering_function
+from my_hoomd_utils import calculate_msd, calculate_radial_distribution_function, calculate_structure_factor, calculate_self_intermediate_scattering_function, calculate_overlap
 import model_utils
 from plotting_functions import *
 
@@ -22,6 +22,7 @@ p.add_argument("--msd", action='store_true')
 p.add_argument("--gr", action='store_true')
 p.add_argument("--Sk", action='store_true')
 p.add_argument("--Fs", action='store_true')
+p.add_argument("--Q", action='store_true')
 args = p.parse_args()
 
 num_partitions = args.num_partitions
@@ -37,6 +38,8 @@ out_file_gr = "%s/%s_gr.dat" % (data_folder, base_name)
 out_file_Sk = "%s/%s_Sk.dat" % (data_folder, base_name)
 out_file_Fs = "%s/%s_Fs.dat" % (data_folder, base_name)
 out_file_Fs_qty = "%s/%s_Fs_qty.dat" % (data_folder, base_name)
+out_file_Q = "%s/%s_Q.dat" % (data_folder, base_name)
+out_file_Q_qty = "%s/%s_Q_qty.dat" % (data_folder, base_name)
 
 state_file = "%s/state.dat" % (data_folder)
 
@@ -74,5 +77,12 @@ if args.Fs:
 
     q_values =  model.get_qmax()
 
-    calculate_self_intermediate_scattering_function(traj_file, q_values, out_file=out_file_Fs, out_file_quantities=out_file_Fs_qty, nk=20, dk=0.05)
+    calculate_self_intermediate_scattering_function(traj_file, q_values, out_file=out_file_Fs, out_file_quantities=out_file_Fs_qty, nk=15, dk=0.03, fix_cm=True)
+
+if args.Q:
+    print("Starting with overlap function.")
+
+    a = 0.3
+
+    calculate_overlap(traj_file, a, out_file=out_file_Q, out_file_quantities=out_file_Q_qty)
 

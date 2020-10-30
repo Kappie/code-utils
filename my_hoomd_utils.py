@@ -619,7 +619,6 @@ def _extract_tau(fks, t):
 
 def calculate_self_intermediate_scattering_function(traj_file, k_values, out_file=None, out_file_quantities=None, **kwargs):
     """
-    Assume trajectory has format .xyz.gz
     k_values contains a q value for each species; this would normally be the maximum of the first peak in the static structure factor.
     """
 
@@ -817,6 +816,89 @@ def setup_cubic_grid_random_types(N, rho, dim=3, particle_types=['A', 'B']):
 
 
     return snapshot
+
+
+
+def calculate_overlap(traj_file, a, out_file=None, out_file_quantities=None, collective=False, **kwargs):
+    r"""
+    a is the coarse-graining length scale to determine when two density profiles are uncorrelated.
+    Note: I use the so-called self-overlap, which is
+    Q_s(t, t') = (1/N) \sum_i \theta( |r_i(t') - r_i(t) | - a ),
+    which has very similar behavior to the self-intermediate scattering function.
+
+    There also exists something called the collective overlap, which is
+    Q_c(t, t') = (1/N) \sum_i \sum_j \theta( |r_i(t') - r_j(t)| - a ).
+
+    See "Non-linear dynamic response of glass-forming liquids to random pinning" by Kob and Coslovich.
+    """
+
+    with atooms.trajectory.Trajectory(traj_file) as traj:
+        nframes = len(traj.steps)
+        species = traj[0].distinct_species()
+
+        result = detect_and_fix_spacing(traj.steps)
+        corrected_steps = result["corrected_steps"]
+        traj.steps = corrected_steps.tolist()
+        mode = result["mode"]
+        if mode == "log":
+            base = result["base"]
+            max_exp = result["max_exp"]
+            block_size = int(base ** max_exp)
+            print("Detected a logarithmically spaced trajectory of %d frames with block_size %d ** %d. Num frames in block: %d" % (nframes, base, max_exp, traj.block_size))
+        elif mode == "linear":
+            spacing = result["spacing"]
+            print("Detected a linearly spaced trajectory of %d frames with spacing %d." % (nframes, spacing))
+
+        if mode == "log":
+            tmin = traj.steps[0]
+            tmax = traj.steps[-1]
+            nblocks = (tmax - tmin) // block_size
+            tgrid = [base**m for m in range(0, max_exp)] + [float(m*block_size) for m in range(1, int(nblocks//2))]
+        elif mode == "linear":
+            tgrid = traj.steps
+
+        if collective:
+            func = pp.CollectiveOverlap
+        else:
+            func = pp.SelfOverlap
+        analysis = pp.Partial(func, trajectory=traj, species=species, tgrid=tgrid, a=a, **kwargs)
+        analysis.do()
+        analysis = analysis.partial # Dict with results for each species
+
+        Qs = []
+        for i, spec in enumerate(species):
+            Qs.append( np.array(analysis[spec].value) )
+
+    tgrid = np.array(tgrid, dtype=int)
+    taus = _extract_tau(Qs, tgrid)
+    print("tau:", taus)
+
+    if out_file:
+        columns = (tgrid,)
+        fmt = "%d"
+        header = "columns=step,"
+        for i, spec in enumerate(species):
+            columns += (Qs[i],)
+            fmt += " %.8g"
+            header += "Q(t, a=%.3f)_species%s," % (a, spec)
+        header = header[:-1]    # remove final comma.
+
+        columns = np.column_stack(columns)
+        np.savetxt(out_file, columns, fmt=fmt, header=header)
+
+
+    if out_file_quantities:
+        header = "# columns="
+        data = ""
+        for spec_i, spec in enumerate(species):
+            header += "tau_%s,a_%s," % (spec, spec)
+            data += "%.6g %.3g " % (taus[spec_i], a)
+        header += "\n"
+        data += "\n"
+
+        with open(out_file_quantities, "w") as f:
+            f.write(header)
+            f.write(data)
 
 
 def setup_output_folders(base_folder):
