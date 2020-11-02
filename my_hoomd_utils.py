@@ -9,6 +9,7 @@ import re
 import atooms.postprocessing as pp
 import os
 import atooms
+import copy
 from atooms.trajectory.decorators import Sliced
 from atooms.trajectory import Trajectory
 from atooms.trajectory.decorators import Unfolded
@@ -18,7 +19,6 @@ from file_reading_functions import make_nested_dir
 from scipy.interpolate import interp1d
 
 from atooms.postprocessing.fourierspace import FourierSpaceCorrelation
-from atooms.trajectory import Trajectory
 
 try:
     import hoomd
@@ -708,20 +708,28 @@ def calculate_self_intermediate_scattering_function(traj_file, k_values, out_fil
             f.write(data)
 
 
-def self_intermediate_scattering_function_particle_iso_avg(traj_file, k, start_pos, final_pos, **kwargs):
+def self_intermediate_scattering_function_particle_iso_avg(traj_file, k_value, start_pos, final_pos, check_reference_mean=False, **kwargs):
     """
     traj_file: is required to get box length, etc. (was not really necessary, but is convenient for now.)
     final_pos: (num_iso_runs, N, dim) array
     """
 
-    tgrid = [0, 1]
-    kgrid = [k]
+    kgrid = [k_value]
     npart = start_pos.shape[0]
     ndim = start_pos.shape[1]
     num_iso_runs = final_pos.shape[0]
 
     with Trajectory(traj_file, "r") as traj:
+        tgrid = traj.steps
         corr = FourierSpaceCorrelation(trajectory=traj, grid=[kgrid, tgrid], **kwargs)
+        if check_reference_mean:
+            analysis_kwargs = copy.copy(kwargs)
+            analysis_kwargs['fix_cm'] = True
+            analysis_kwargs['normalize'] = True
+            analysis = pp.SelfIntermediateScattering(trajectory=traj, kgrid=kgrid, tgrid=tgrid, **analysis_kwargs)
+            analysis.do()
+            result_coslovich = np.array(analysis.value[0])
+        
 
     corr.kgrid = kgrid
 
@@ -740,16 +748,22 @@ def self_intermediate_scattering_function_particle_iso_avg(traj_file, k, start_p
 
     kvectors = corr.kvectors[corr.kgrid[0]]
     nk_actual = len(kvectors)
-
-
     result = np.zeros((nk_actual, num_iso_runs, npart))
-    for k_idx, k in enumerate(kvectors):
-        result[k_idx, :, :] = np.cos( np.dot(final_pos - start_pos, k) )
+
+    # kvectors = k_value * np.array([[1, 0], [0, 1]])
+    # result = np.zeros((2, num_iso_runs, npart))
+
+    for k_idx, kvec in enumerate(kvectors):
+        result[k_idx, :, :] = np.cos( np.dot(final_pos - start_pos, kvec) )
 
     # Average over different k vectors.
     result = np.mean(result, axis=0)
 
-    return result
+
+    if check_reference_mean:
+        return result, result_coslovich
+    else:
+        return result
 
 
 # def calculate_correlator_1d(ts, values):

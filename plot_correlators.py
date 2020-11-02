@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from plotting_functions import *
+from datetime import datetime
 import argparse
 import re
 import numpy as np
@@ -59,6 +60,10 @@ if quantities:  # assume it is always there
     current_axis += 1
 
     data = np.loadtxt(data_file_qty, skiprows=1)
+    time_last_modified_traj = os.path.getmtime(data_file_qty)
+    time_last_modified_msd  = os.path.getmtime(data_file_msd)
+    time_last_modified_traj_str = datetime.utcfromtimestamp(time_last_modified_traj).strftime('%m-%d %H:%M')
+    time_last_modified_msd_str = datetime.utcfromtimestamp(time_last_modified_msd).strftime('%m-%d %H:%M')
     step = data[:, 0]
     U    = data[:, 1]
     Ekin = data[:, 2]
@@ -85,7 +90,7 @@ if quantities:  # assume it is always there
 
     ax.set(xlabel="$U/N$", ylabel="$W/N$")
 
-    ax.text(0.5, 0.2, "%s\n$(\\rho, T) = (%.2f, %.2f)$\n$R = %.4f$, $\gamma = %.2f$,\nintersect = %.2f" % (model_name.replace("_", " "), rho, T, R, gamma, intersect), transform=ax.transAxes)
+    ax.text(0.5, 0.2, "%s\n$(\\rho, T) = (%.2f, %.2f)$\n$R = %.4f$, $\gamma = %.2f$,\nintersect = %.2f\nmsd date: %s\ntraj date: %s" % (model_name.replace("_", " "), rho, T, R, gamma, intersect, time_last_modified_msd_str, time_last_modified_traj_str), transform=ax.transAxes)
     xlim2 = np.array(ax.get_xlim())
     ax.plot(xlim2, gamma*xlim2 + intersect, ls='--', color='k', lw=fit_lw)
 
