@@ -98,7 +98,7 @@ if quantities:  # assume it is always there
     R = np.mean( delta_W * delta_U ) / ( std_U * std_W )
     gamma, intersect = np.polyfit(U, W, 1)
 
-    nice_plot(ax, U, W)
+    # nice_plot(ax, U, W)
 
     ax.set(xlabel="$U/N$", ylabel="$W/N$")
 
