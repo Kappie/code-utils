@@ -28,6 +28,7 @@ class IPL(Model):
     particle_types = ['A', 'B']
     default_rho = 0.82
     name = 'ipl'
+    qmax = {0.82: [6.88, 6.35]}
 
     def get_dt(self):
         if self.T < 1:
@@ -181,7 +182,11 @@ class ForceShiftedLJ(Model):
     name = "force_shifted_lj"
     folder_name = "force_shifted_lj"
 
-    def setup(self):
+    particle_types = ['A', 'B']
+
+    def setup(self, types=None):
+        if not types:
+            types = self.particle_types
         # Neighbor list.
         nl = md.nlist.cell()
 
@@ -191,9 +196,9 @@ class ForceShiftedLJ(Model):
         epsilonBB = 0.5; sigmaBB = 0.88; r_cutBB = 1.5
 
         lj = md.pair.force_shifted_lj(nlist=nl, r_cut=r_cutAA)
-        lj.pair_coeff.set('A', 'A', sigma=sigmaAA, epsilon=epsilonAA, r_cut=r_cutAA)
-        lj.pair_coeff.set('A', 'B', sigma=sigmaAB, epsilon=epsilonAB, r_cut=r_cutAB)
-        lj.pair_coeff.set('B', 'B', sigma=sigmaBB, epsilon=epsilonBB, r_cut=r_cutBB)
+        lj.pair_coeff.set(types[0], types[0], sigma=sigmaAA, epsilon=epsilonAA, r_cut=r_cutAA)
+        lj.pair_coeff.set(types[0], types[1], sigma=sigmaAB, epsilon=epsilonAB, r_cut=r_cutAB)
+        lj.pair_coeff.set(types[1], types[1], sigma=sigmaBB, epsilon=epsilonBB, r_cut=r_cutBB)
 
         self.neighbor_list = nl
 
