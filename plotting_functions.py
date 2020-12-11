@@ -16,9 +16,12 @@ import os
 import seaborn as sns
 from mpl_toolkits.mplot3d import Axes3D
 import io
-# import cv2
+from matplotlib.colors import LogNorm, Normalize
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.cm import ScalarMappable
 
 from palettable.colorbrewer.diverging import RdYlBu_7
+from lerner_group.visualization_tools import histogram_log_bins
 
 # colors = ['palevioletred', 'darkslateblue', 'mediumseagreen', 'mediumpurple', 'darkorange', 'firebrick', 'mediumturquoise', 'olive', 'indigo', 'goldenrod']
 colors = sns.color_palette('colorblind')
@@ -42,7 +45,7 @@ def myshow():
     plt.tight_layout()
     plt.show()
 
-def init_fig(width=None, height=None, grid=(1,1), locs=None, colspans=None, rowspans=None, projections=None, facecolor='white', ax_width=0.5, text_font_size=text_font_size, label_font_size=label_font_size, default_size=4.0):
+def init_fig(width=None, height=None, grid=(1,1), locs=None, colspans=None, rowspans=None, projections=None, facecolor='white', ax_width=0.5, text_font_size=text_font_size, label_font_size=label_font_size, default_size=3.5):
     # locs: 
     if not width:
         width = grid[1]*default_size
@@ -93,7 +96,7 @@ def init_fig(width=None, height=None, grid=(1,1), locs=None, colspans=None, rows
 
 def nice_legend(ax, box=False, labels=None, handles=None, **kwargs):
 
-    default_kwargs = {'ncol': 1, 'fontsize': legend_font_size, 'title': None, 'loc': 'best'}
+    default_kwargs = {'ncol': 1, 'fontsize': legend_font_size, 'title': None, 'loc': 'best', 'title_fontsize': legend_font_size}
     for key in default_kwargs:
         if not key in kwargs:
             kwargs[key] = default_kwargs[key]
@@ -124,7 +127,7 @@ def nice_legend(ax, box=False, labels=None, handles=None, **kwargs):
     legend.get_frame().set_edgecolor('k')
     legend.get_frame().set_linewidth(0.5)
 
-    legend.get_title().set_fontsize(kwargs['fontsize'])
+    # legend.get_title().set_fontsize(kwargs['fontsize'])
     ax.add_artist(legend)
     return legend
 
@@ -261,5 +264,27 @@ def add_labels(axes, style=r'(%s)', shift_x_em=0.0):
 #     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 #     return img
+def match_slope_to_figure_angle(ax, slope):
+    x_min, x_max = ax.get_xlim()
+    y_min, y_max = ax.get_ylim()
+    # x_sz, y_sz = plt.gcf().get_size_inches()
+    bbox = ax.get_window_extent()
+    x_sz, y_sz = bbox.width, bbox.height
+    x_factor = x_sz / (np.log10(x_max) - np.log10(x_min))
+    y_factor = y_sz / (np.log10(y_max) - np.log10(y_min))
+    adjusted_slope = (slope * y_factor / x_factor)
+    return (360/(2*np.pi)) * np.arctan2(adjusted_slope, 1)
 
+def nice_colorbar(ax, cmap=None, norm=None, **kwargs):
+    defaults = dict(size="5%", pad=0.05, pack_start=True)
+    for key in defaults:
+        if not key in kwargs:
+            kwargs[key] = defaults[key]
 
+    divider = make_axes_locatable(ax)
+    ax_cb = divider.new_vertical(**kwargs)
+    fig = ax.get_figure()
+    fig.add_axes(ax_cb)
+
+    fig.colorbar(ScalarMappable(norm=norm, cmap=cmap), cax=ax_cb, orientation='horizontal')
+    return ax_cb

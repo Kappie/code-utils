@@ -14,6 +14,10 @@ import model_utils
 
 p = argparse.ArgumentParser()
 p.add_argument("--traj_file", type=str)
+p.add_argument("--T", type=float)
+p.add_argument("--rho", type=float)
+p.add_argument("--model_name", type=str)
+p.add_argument("--npart", type=int)
 args = p.parse_args()
 
 traj_file = args.traj_file
@@ -41,18 +45,26 @@ axes = init_fig(grid=(1,num_axes))
 current_axis = 0
 
 # Get rho, T, dt from state file.
-with open(state_file, "r") as f:
-    lines = [line.rstrip() for line in f]
-    data = lines[1].split(", ")
+if os.path.isfile(state_file):
+    with open(state_file, "r") as f:
+        lines = [line.rstrip() for line in f]
+        data = lines[1].split(", ")
 
-    model_name = str(data[0])
-    T = float(data[1])
-    tau_thermostat = float(data[2])
-    rho = float(data[3])
-    npart = int(data[4])
-    dt = float(data[5])
+        model_name = str(data[0])
+        T = float(data[1])
+        tau_thermostat = float(data[2])
+        rho = float(data[3])
+        npart = int(data[4])
+        dt = float(data[5])
+    model = model_utils.models[model_name](T=T, rho=rho)
+else:
+    T = args.T
+    rho = args.rho
+    npart = args.npart
+    model_name = args.model_name
+    model = model_utils.models[model_name](T=T, rho=rho)
+    dt = model.get_dt()
 
-model = model_utils.models[model_name](T=T, rho=rho)
 
 
 if quantities:  # assume it is always there

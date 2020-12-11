@@ -17,8 +17,11 @@ import atooms.trajectory
 from os.path import basename, dirname, splitext, join, exists
 from file_reading_functions import make_nested_dir
 from scipy.interpolate import interp1d
+from scipy.stats.stats import pearsonr, spearmanr, rankdata
 
 from atooms.postprocessing.fourierspace import FourierSpaceCorrelation
+import freud.box
+import freud.locality
 
 try:
     import hoomd
@@ -597,25 +600,20 @@ def calculate_structure_factor(traj_file, out_file=None, mode="separate_species"
         columns = np.column_stack(columns)
         np.savetxt(out_file, columns, fmt=fmt, header=header)
 
-def _extract_tau(fks, t):
-    cutoff = 0.2
+def extract_tau(fk, t, cutoff=0.2):
     boundaries_fit = np.asarray([0.05, 0.7])
-    num_species = len(fks)
-    taus = np.zeros(num_species)
 
-    for i, fk in enumerate(fks):
-        # import pdb; pdb.set_trace()
-        idx = np.logical_and(fk > boundaries_fit[0], fk < boundaries_fit[1])
-        fk_zoom = fk[idx]
-        t_zoom = t[idx]
+    idx = np.logical_and(fk > boundaries_fit[0], fk < boundaries_fit[1])
+    fk_zoom = fk[idx]
+    t_zoom = t[idx]
 
-        try:
-            interp_function = interp1d(fk_zoom, np.log(t_zoom))
-            taus[i] = np.exp(interp_function(cutoff))
-        except ValueError:
-            taus[i] = np.nan
+    try:
+        interp_function = interp1d(fk_zoom, np.log(t_zoom))
+        tau = np.exp(interp_function(cutoff))
+    except ValueError:
+        tau = np.nan
 
-    return taus
+    return tau
 
 def calculate_self_intermediate_scattering_function(traj_file, k_values, out_file=None, out_file_quantities=None, **kwargs):
     """
@@ -677,7 +675,9 @@ def calculate_self_intermediate_scattering_function(traj_file, k_values, out_fil
     print("Actual kgrid:", actual_k_values)
     # For log-spaced trajectories, it automatically adds t = 0 for some reason.
     actual_tgrid = np.array( analysis[species[0]].grid[1], dtype=int )
-    taus = _extract_tau(fks, actual_tgrid)
+    taus = np.zeros(len(species))
+    for i, fk in enumerate(fks):
+        taus[i] = extract_tau(fks, actual_tgrid)
     print("tau:", taus)
 
     if out_file:
@@ -708,24 +708,26 @@ def calculate_self_intermediate_scattering_function(traj_file, k_values, out_fil
             f.write(data)
 
 
-def self_intermediate_scattering_function_particle_iso_avg(traj_file, k_value, start_pos, final_pos, check_reference_mean=False, **kwargs):
+def self_intermediate_scattering_function_particle(traj_file, k_value, start_pos, final_pos, check_reference_mean=False, **kwargs):
     """
     traj_file: is required to get box length, etc. (was not really necessary, but is convenient for now.)
-    final_pos: (num_iso_runs, N, dim) array
+    final_pos: (num_frames, N, dim) array
     """
 
     kgrid = [k_value]
     npart = start_pos.shape[0]
     ndim = start_pos.shape[1]
-    num_iso_runs = final_pos.shape[0]
+    num_frames = final_pos.shape[0]
+    displacement = final_pos - start_pos
 
     with Trajectory(traj_file, "r") as traj:
         tgrid = traj.steps
+        box_size = traj[0].cell.side
         corr = FourierSpaceCorrelation(trajectory=traj, grid=[kgrid, tgrid], **kwargs)
         if check_reference_mean:
             analysis_kwargs = copy.copy(kwargs)
-            analysis_kwargs['fix_cm'] = True
-            analysis_kwargs['normalize'] = True
+            analysis_kwargs['fix_cm'] = False
+            analysis_kwargs['normalize'] = False
             analysis = pp.SelfIntermediateScattering(trajectory=traj, kgrid=kgrid, tgrid=tgrid, **analysis_kwargs)
             analysis.do()
             result_coslovich = np.array(analysis.value[0])
@@ -748,17 +750,29 @@ def self_intermediate_scattering_function_particle_iso_avg(traj_file, k_value, s
 
     kvectors = corr.kvectors[corr.kgrid[0]]
     nk_actual = len(kvectors)
-    result = np.zeros((nk_actual, num_iso_runs, npart))
 
-    # kvectors = k_value * np.array([[1, 0], [0, 1]])
-    # result = np.zeros((2, num_iso_runs, npart))
+    # Construct Freud box object to correctly apply minimum image convention.
+    if ndim == 2:
+        box = freud.box.Box(Lx=box_size[0], Ly=box_size[1])
+        # Add z-coordinate of 0 (only necessary for applying minimum image with Freud).
+        displacement_new = np.zeros((num_frames, npart, 3))
+        displacement_new[:, :, :2] = displacement
+        displacement = displacement_new
+    elif ndim == 3:
+        box = freud.box.Box(Lx=box_size[0], Ly=box_size[1], Lz=box_size[2])
 
+    # Apply minimum image convention between final_pos and start_pos
+    for iso_run in range(num_frames):
+        displacement[iso_run, :, :] = box.wrap( displacement[iso_run, :, :] )
+    # Throw away dummy z-coordinate if in 2D.
+    displacement = displacement[:, :, :ndim]
+
+    result = np.zeros((nk_actual, num_frames, npart))
     for k_idx, kvec in enumerate(kvectors):
-        result[k_idx, :, :] = np.cos( np.dot(final_pos - start_pos, kvec) )
+        result[k_idx, :, :] = np.cos( np.dot(displacement, kvec) )
 
     # Average over different k vectors.
     result = np.mean(result, axis=0)
-
 
     if check_reference_mean:
         return result, result_coslovich
@@ -884,7 +898,11 @@ def calculate_overlap(traj_file, a, out_file=None, out_file_quantities=None, col
             Qs.append( np.array(analysis[spec].value) )
 
     tgrid = np.array(tgrid, dtype=int)
-    taus = _extract_tau(Qs, tgrid)
+    taus = np.zeros(len(species))
+
+    for i, qt in enumerate(Qs):
+        taus[i] = extract_tau(qt, tgrid)
+
     print("tau:", taus)
 
     if out_file:
@@ -931,3 +949,49 @@ def setup_output_folders(base_folder):
     return traj_file, qty_file, final_state_file, state_file, restart_file
 
 
+def decimate_log_trajectory(steps, num_per_block=1):
+    base, max_exp, corrected_steps = detect_base_and_max_exp(steps)
+    corrected_steps = np.asarray(corrected_steps)
+    block_size = int(base ** max_exp)
+    block_len = int(max_exp + 1)
+    num_blocks = int(corrected_steps[-1] // block_size)
+    num_frames = len(corrected_steps)
+
+    frames_to_select = [n*block_len for n in range(num_blocks)]     # first frame of each block
+
+    for offset in range(1, num_per_block):
+        frames_to_select += [n*block_len - offset for n in range(1, num_blocks)]
+
+    frames_to_select = np.array(frames_to_select)
+    frames_to_select = np.sort(frames_to_select)
+
+    return (corrected_steps[frames_to_select], frames_to_select)
+
+
+def rank_correlate_by_species(x, y, ptypes):
+    distinct_species = np.unique(ptypes)
+    spearman_coeffs = np.zeros((distinct_species.shape[0]))
+    
+    for i, species in enumerate(distinct_species):
+        idx = ptypes == species
+        this_x = x[idx]; this_y = y[idx]
+        coefficient, pvalue = spearmanr(this_x, this_y)
+        spearman_coeffs[i] = coefficient
+
+    return spearman_coeffs
+
+def remove_translations(x):
+    x = np.copy(x)
+    npart = x.shape[0]
+    ndim = x.shape[1]
+
+    for d in range(ndim):
+        temp = 0.0
+        for i in range(npart):
+            temp += x[i, d]
+        temp /= npart
+
+        for i in range(npart):
+            x[i, d] -= temp
+
+    return x

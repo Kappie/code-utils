@@ -23,6 +23,9 @@ p.add_argument("--gr", action='store_true')
 p.add_argument("--Sk", action='store_true')
 p.add_argument("--Fs", action='store_true')
 p.add_argument("--Q", action='store_true')
+p.add_argument("--T", type=float)
+p.add_argument("--rho", type=float)
+p.add_argument("--model_name", type=str)
 args = p.parse_args()
 
 num_partitions = args.num_partitions
@@ -44,18 +47,23 @@ out_file_Q_qty = "%s/%s_Q_qty.dat" % (data_folder, base_name)
 state_file = "%s/state.dat" % (data_folder)
 
 # Get rho, T from state file.
-with open(state_file, "r") as f:
-    lines = [line.rstrip() for line in f]
-    data = lines[1].split(", ")
+if os.path.isfile(state_file):
+    with open(state_file, "r") as f:
+        lines = [line.rstrip() for line in f]
+        data = lines[1].split(", ")
 
 
-    model_name = str(data[0])
-    T = float(data[1])
-    tau_thermostat = float(data[2])
-    rho = float(data[3])
-    npart = int(data[4])
-    dt = float(data[5])
-
+        model_name = str(data[0])
+        T = float(data[1])
+        tau_thermostat = float(data[2])
+        rho = float(data[3])
+        npart = int(data[4])
+        dt = float(data[5])
+# Alternatively, supply T and rho yourself.
+else:
+    T = args.T
+    rho = args.rho
+    model_name = args.model_name
 
 model = model_utils.models[model_name](T=T, rho=rho)
 
