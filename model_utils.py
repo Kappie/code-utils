@@ -76,7 +76,7 @@ class StickySpheres(Model):
     default_rho = 0.6
     name = 'sticky_spheres'
     dt = {1.2: 0.001, 0.95: 0.002, 0.80: 0.003, 0.70: 0.003, 0.60: 0.005}
-    qmax = {0.95: [7.35, 6.4], 0.80: [6.86, 6.06], 0.70: [6.86, 5.87]}
+    qmax = {0.95: [7.35, 6.4], 0.80: [6.86, 6.06], 0.70: [6.86, 5.87], 0.60: [6.44, 5.47]}
 
     def setup(self, types=None):
         if not types:

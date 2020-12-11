@@ -677,7 +677,7 @@ def calculate_self_intermediate_scattering_function(traj_file, k_values, out_fil
     actual_tgrid = np.array( analysis[species[0]].grid[1], dtype=int )
     taus = np.zeros(len(species))
     for i, fk in enumerate(fks):
-        taus[i] = extract_tau(fks, actual_tgrid)
+        taus[i] = extract_tau(fk, actual_tgrid)
     print("tau:", taus)
 
     if out_file:
