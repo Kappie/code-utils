@@ -388,8 +388,11 @@ def detect_and_fix_spacing(steps):
         block_length = max_exp + 1
         block_size = int(base ** max_exp)
 
-        result["base"] = base
-        result["max_exp"] = max_exp
+        if max_exp > 1:
+            result["base"] = base
+            result["max_exp"] = max_exp
+        else:
+            result["mode"] = "other"
 
     # Now, correct the time steps of subsequent simulation chunks.
     start_chunks = np.nonzero(steps == 0)[0][1:]    # Throw away first start, which is always at index 0.
@@ -967,6 +970,15 @@ def decimate_log_trajectory(steps, num_per_block=1):
 
     return (corrected_steps[frames_to_select], frames_to_select)
 
+def decimate_trajectory(steps, skip=1):
+    """
+    Simply just skip a number of frames evenly.
+    """
+    num_frames = len(steps)
+    frames_to_select = np.array( range(0, num_frames, skip + 1) )
+
+    return (steps[frames_to_select], frames_to_select)
+
 
 def rank_correlate_by_species(x, y, ptypes):
     distinct_species = np.unique(ptypes)
@@ -995,3 +1007,24 @@ def remove_translations(x):
             x[i, d] -= temp
 
     return x
+
+
+def get_state_information(traj_file):
+    data_folder = os.path.join( os.path.split(os.path.dirname(traj_file))[0], "log")
+    state_file = "%s/state.dat" % (data_folder)
+    if os.path.isfile(state_file):
+        result = {}
+        with open(state_file, "r") as f:
+            lines = [line.rstrip() for line in f]
+            data = lines[1].split(", ")
+
+            result['model_name'] = str(data[0])
+            result['T'] = float(data[1])
+            result['tau_thermostat'] = float(data[2])
+            result['rho'] = float(data[3])
+            result['npart'] = int(data[4])
+            result['dt'] = float(data[5])
+
+        return result
+    else:
+        raise Exception("Could not find %s" % state_file)

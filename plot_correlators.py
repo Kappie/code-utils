@@ -14,6 +14,7 @@ import model_utils
 
 p = argparse.ArgumentParser()
 p.add_argument("--traj_file", type=str)
+p.add_argument("--wu_correlations", action="store_true")
 p.add_argument("--T", type=float)
 p.add_argument("--rho", type=float)
 p.add_argument("--model_name", type=str)
@@ -21,6 +22,7 @@ p.add_argument("--npart", type=int)
 args = p.parse_args()
 
 traj_file = args.traj_file
+wu_correlations = args.wu_correlations
 
 data_folder = os.path.join( os.path.split(os.path.dirname(traj_file))[0], "log")
 base_name = os.path.splitext(os.path.basename(traj_file))[0]
@@ -67,7 +69,7 @@ else:
 
 
 
-if quantities:  # assume it is always there
+if quantities and wu_correlations:  # assume it is always there
     ax = axes[current_axis]
     current_axis += 1
 

@@ -275,16 +275,21 @@ def match_slope_to_figure_angle(ax, slope):
     adjusted_slope = (slope * y_factor / x_factor)
     return (360/(2*np.pi)) * np.arctan2(adjusted_slope, 1)
 
-def nice_colorbar(ax, cmap=None, norm=None, **kwargs):
+def nice_colorbar(ax, cmap=None, norm=None, kwargs={}, cbar_kwargs={}):
     defaults = dict(size="5%", pad=0.05, pack_start=True)
     for key in defaults:
         if not key in kwargs:
             kwargs[key] = defaults[key]
+
+    cbar_defaults = dict(orientation='horizontal')
+    for key in cbar_defaults:
+        if not key in cbar_kwargs:
+            cbar_kwargs[key] = cbar_defaults[key]
 
     divider = make_axes_locatable(ax)
     ax_cb = divider.new_vertical(**kwargs)
     fig = ax.get_figure()
     fig.add_axes(ax_cb)
 
-    fig.colorbar(ScalarMappable(norm=norm, cmap=cmap), cax=ax_cb, orientation='horizontal')
+    fig.colorbar(ScalarMappable(norm=norm, cmap=cmap), cax=ax_cb, **cbar_kwargs)
     return ax_cb
