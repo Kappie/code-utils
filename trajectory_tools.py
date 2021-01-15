@@ -27,7 +27,7 @@ def decimate(traj_file, traj_file_out, num_per_block, skip):
             if skip == None:
                 raise Exception("Please supply skip for a linear (or \"other\") trajectory.")
             corrected_steps = result["corrected_steps"]
-            decimated_steps, decimated_frames = decimate_trajectory(corrected_steps)
+            decimated_steps, decimated_frames = decimate_trajectory(corrected_steps, skip=skip)
 
         with Trajectory(traj_file_out, "w") as new_traj:
             for i, frame in enumerate(decimated_frames):

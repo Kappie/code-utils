@@ -18,6 +18,7 @@ from os.path import basename, dirname, splitext, join, exists
 from file_reading_functions import make_nested_dir
 from scipy.interpolate import interp1d
 from scipy.stats.stats import pearsonr, spearmanr, rankdata
+from analysis_tools import fit_power_law
 
 from atooms.postprocessing.fourierspace import FourierSpaceCorrelation
 import freud.box
@@ -618,6 +619,16 @@ def extract_tau(fk, t, cutoff=0.2):
 
     return tau
 
+
+def extract_diffusion_coefficient(t, msd, dim=3):
+    """
+    msd = 2*dim*D*t
+    """
+    prefactor = fit_power_law(t, msd, exponent=1)
+    return prefactor / (2*dim)
+    
+
+
 def calculate_self_intermediate_scattering_function(traj_file, k_values, out_file=None, out_file_quantities=None, **kwargs):
     """
     k_values contains a q value for each species; this would normally be the maximum of the first peak in the static structure factor.
@@ -1012,6 +1023,13 @@ def remove_translations(x):
 def get_state_information(traj_file):
     data_folder = os.path.join( os.path.split(os.path.dirname(traj_file))[0], "log")
     state_file = "%s/state.dat" % (data_folder)
+
+    with atooms.trajectory.Trajectory(traj_file, "r") as traj:
+        if traj[0].cell.side.size == 2 or traj[0].cell.side[2] == 1.:
+            ndim = 2
+        else:
+            ndim = 3
+
     if os.path.isfile(state_file):
         result = {}
         with open(state_file, "r") as f:
@@ -1025,6 +1043,10 @@ def get_state_information(traj_file):
             result['npart'] = int(data[4])
             result['dt'] = float(data[5])
 
+        result["ndim"] = ndim
         return result
     else:
         raise Exception("Could not find %s" % state_file)
+
+
+
