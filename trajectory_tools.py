@@ -2,7 +2,7 @@
 import click
 import os
 from atooms.trajectory import Trajectory
-from my_hoomd_utils import decimate_log_trajectory, detect_base_and_max_exp, detect_and_fix_spacing, decimate_trajectory
+from my_hoomd_utils import decimate_log_trajectory, detect_base_and_max_exp, detect_and_fix_spacing, decimate_trajectory, get_state_information
 
 
 @click.group()
@@ -37,6 +37,8 @@ def decimate(traj_file, traj_file_out, num_per_block, skip):
 @click.command()
 @click.option('--traj_file', help='input trajectory file', required=True, type=click.Path())
 def inspect(traj_file):
+    state = get_state_information(traj_file)
+    dt = state['dt']
     with Trajectory(traj_file) as traj:
         nframes = len(traj.steps)
         species = traj[0].distinct_species()
@@ -59,12 +61,12 @@ def inspect(traj_file):
     frames: %d
     mode: %s
     blocks: %d
-    block size: %d = %d ** %d""" % (nframes, mode, nblocks, block_size, base, max_exp))
+    block size: %g = %g * %d = %g * %d ** %d""" % (nframes, mode, nblocks, dt*block_size, dt, block_size, dt, base, max_exp))
         elif mode == "linear":
             click.echo("""Trajectory information:
     frames: %d
     mode: %s
-    spacing: %d""" % (nframes, mode, result['spacing']))
+    spacing: %g = %g * %d""" % (nframes, mode, dt*result['spacing'], dt, result["spacing"]))
         elif mode == "other":
             click.echo("""Trajectory information:
     frames: %d

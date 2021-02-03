@@ -24,7 +24,7 @@ from palettable.colorbrewer.diverging import RdYlBu_7
 from lerner_group.visualization_tools import histogram_log_bins
 
 # colors = ['palevioletred', 'darkslateblue', 'mediumseagreen', 'mediumpurple', 'darkorange', 'firebrick', 'mediumturquoise', 'olive', 'indigo', 'goldenrod']
-colors = sns.color_palette('colorblind')
+colors = sns.color_palette('deep')
 markers = list(Line2D.filled_markers)
 annot_font_size = 8
 label_font_size = 8
@@ -32,7 +32,7 @@ text_font_size = 10
 legend_font_size = label_font_size
 fit_lw = 0.75
 markeredgewidth = 0.5
-markersize = 4
+markersize = 4.5
 
 pre_width_points = 246
 pre_double_width_points = 510
@@ -45,7 +45,7 @@ def myshow():
     plt.tight_layout()
     plt.show()
 
-def init_fig(width=None, height=None, grid=(1,1), locs=None, colspans=None, rowspans=None, projections=None, facecolor='white', ax_width=0.5, text_font_size=text_font_size, label_font_size=label_font_size, default_size=3.5):
+def init_fig(width=None, height=None, grid=(1,1), locs=None, colspans=None, rowspans=None, projections=None, facecolor='white', ax_width=0.5, text_font_size=text_font_size, label_font_size=label_font_size, default_size=2.5):
     # locs: 
     if not width:
         width = grid[1]*default_size
@@ -96,14 +96,11 @@ def init_fig(width=None, height=None, grid=(1,1), locs=None, colspans=None, rows
 
 def nice_legend(ax, box=False, labels=None, handles=None, **kwargs):
 
-    default_kwargs = {'ncol': 1, 'fontsize': legend_font_size, 'title': None, 'loc': 'best', 'title_fontsize': legend_font_size}
+    default_kwargs = {'ncol': 1, 'fontsize': legend_font_size, 'title': None, 'loc': 'best', 'title_fontsize': legend_font_size, 'borderpad': 0.4, 'handletextpad': 0.4, 'handlelength': 1.25}
     for key in default_kwargs:
         if not key in kwargs:
             kwargs[key] = default_kwargs[key]
 
-    handletextpad = 0.4
-    borderpad = 0.4
-    handlelength = 1.25
     if box:
         framealpha = 1 
         frameon = True
@@ -113,17 +110,14 @@ def nice_legend(ax, box=False, labels=None, handles=None, **kwargs):
     scatteryoffsets = [0.5]
     if labels:
         legend = ax.legend(
-            labels, frameon=frameon, handletextpad=handletextpad, borderpad=borderpad, handlelength=handlelength,
-            shadow=False, framealpha=framealpha, scatteryoffsets=scatteryoffsets, **kwargs)
+            labels, frameon=frameon, shadow=False, framealpha=framealpha, scatteryoffsets=scatteryoffsets, **kwargs)
     else:
         if handles:
             legend = ax.legend(
-                handles=handles, frameon=frameon, handletextpad=handletextpad, borderpad=borderpad, handlelength=handlelength,
-                shadow=False, framealpha=framealpha, scatteryoffsets=scatteryoffsets, **kwargs)
+                handles=handles, frameon=frameon, shadow=False, framealpha=framealpha, scatteryoffsets=scatteryoffsets, **kwargs)
         else:
             legend = ax.legend(
-                frameon=frameon, handletextpad=handletextpad, borderpad=borderpad, handlelength=handlelength,
-                shadow=False, framealpha=framealpha, scatteryoffsets=scatteryoffsets, **kwargs)
+                frameon=frameon, shadow=False, framealpha=framealpha, scatteryoffsets=scatteryoffsets, **kwargs)
     legend.get_frame().set_edgecolor('k')
     legend.get_frame().set_linewidth(0.5)
 
@@ -155,7 +149,7 @@ def plot_phonon_widths(ax, filename, N, marker, color):
     ax.loglog(x, delta_omega, marker=marker, color=color, ls='None', markeredgewidth=markeredgewidth, markeredgecolor='k',markersize=markersize)
 
 
-def nice_plot(ax, x, y, xerr=None, yerr=None, color=colors[0], ecolor='k', marker='o', xscale='linear', yscale='linear', ls='None', ms=markersize, markeredgecolor='k', markeredgewidth=markeredgewidth, alpha=1, markerfacecolor=None, label=None, barsabove=False, lw=fit_lw, zorder=None):
+def nice_plot(ax, x, y, xerr=None, yerr=None, color=colors[0], ecolor='k', marker='o', xscale='linear', yscale='linear', ls='None', ms=markersize, markeredgecolor='k', markeredgewidth=0, alpha=1, markerfacecolor=None, label=None, barsabove=False, lw=fit_lw, zorder=None):
     if not markerfacecolor:
         markerfacecolor = color
     if xerr is not None or yerr is not None:
@@ -227,30 +221,50 @@ def nice_hist(x, x_min=None, x_max=None, bins=10, min_hits=0, density=False):
     return counts[idx], centers[idx]
 
 
-def add_labels(axes, style=r'(%s)', shift_x_em=0.0):
+def add_labels(axes, style=r'(%s)', shift_x_em=None, custom_labels=None, fontsize=None):
     """
     Adds figure labels (a), (b), (c), etc. to axes.
     Must be called after plt.tight_layout().
     """
+    if shift_x_em == None:
+        shift_x_em = [0.0 for ax in axes]
 
-    alphabet = 'abcdefghijkl'
-    labels = [style % letter for letter in alphabet]
+    alphabet = 'abcdefghijklmnopqrstuvwxyz'
+    if custom_labels:
+        labels = custom_labels
+    else:
+        labels = [style % letter for letter in alphabet]
 
     # EXTREME hack alert.
     # For some magical reason, this is necessary to get the bounding boxes correct.
     axes[0].figure.savefig("/tmp/hallo.pdf")   
+    ax_labels = []
 
     for i, ax in enumerate(axes):
         transform = ax.transAxes
         inv_transform = ax.transAxes.inverted()
+        highest_ytick_bbox = ax.get_yticklabels()[-1].get_window_extent()
+        ylabel = ax.yaxis.label.get_text()
         ylabelbox = ax.yaxis.label.get_window_extent()
-        fontsize = ax.yaxis.label.get_size()
         axbox = ax.get_window_extent()
-        labelx_pixel = ylabelbox.x0 + shift_x_em*fontsize  # move 0.5 em to the left to align better.
+        if not fontsize:
+            fontsize = ax.yaxis.label.get_font_properties().get_size()
+        labelx_pixel = (ylabelbox.x0 + ylabelbox.x1)/2. + shift_x_em[i]*fontsize
         labely_pixel = axbox.y1
         labelx, labely = inv_transform.transform((labelx_pixel, labely_pixel))
-        fontsize = ax.yaxis.label.get_font_properties().get_size()
-        ax.text(labelx, labely, labels[i], transform=transform, va='top', ha='left', fontsize=fontsize)
+        ax_label = ax.text(labelx, labely, labels[i], transform=transform, va='top', ha='center', fontsize=fontsize)
+
+        # ax_label_bbox = ax_label.get_window_extent()
+        # if ax_label_bbox.x1 > ylabelbox.x1:
+        #     diff_pixels = ax_label_bbox.x1 - ylabelbox.x1 
+        #     x0_max_labels = min([label.get_window_extent().x0 for label in ax.get_yticklabels()])
+        #     current_pad_pixel = x0_max_labels - ylabelbox.x1
+        #     ylabel_new_x = inv_transform.transform((ylabelbox.x0 - diff_pixels, 0))[0]
+        #     new_pad_pts = (current_pad_pixel+diff_pixels)*0.72
+        #     ax.set_ylabel(ylabel, labelpad=new_pad_pts)
+        #     labelx_pixel_new = labelx_pixel - diff_pixels
+        #     labelx_new = inv_transform.transform((labelx_pixel_new, 0))[0]
+        #     ax_label.set_x(labelx_new)
 
 
 # define a function which returns an image as numpy array from figure
@@ -293,3 +307,7 @@ def nice_colorbar(ax, cmap=None, norm=None, kwargs={}, cbar_kwargs={}):
 
     fig.colorbar(ScalarMappable(norm=norm, cmap=cmap), cax=ax_cb, **cbar_kwargs)
     return ax_cb
+
+
+def nice_text(ax, string=None, x_rel=None, y_rel=None, horizontalalignment='center', verticalalignment='center', **kwargs):
+    ax.text(x_rel, y_rel, string, horizontalalignment=horizontalalignment, verticalalignment=verticalalignment, transform=ax.transAxes, **kwargs)

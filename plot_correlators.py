@@ -31,7 +31,9 @@ qty_file_msd = "%s/%s_msd_qty.dat" % (data_folder, base_name)
 data_file_gr = "%s/%s_gr.dat" % (data_folder, base_name)
 data_file_Sk = "%s/%s_Sk.dat" % (data_folder, base_name)
 data_file_Fs = "%s/%s_Fs.dat" % (data_folder, base_name)
+data_file_Q = "%s/%s_Q.dat" % (data_folder, base_name)
 qty_file_Fs = "%s/%s_Fs_qty.dat" % (data_folder, base_name)
+qty_file_Q = "%s/%s_Q_qty.dat" % (data_folder, base_name)
 data_file_qty = "%s/quantities.dat" % (data_folder)
 state_file = "%s/state.dat" % (data_folder)
 
@@ -40,9 +42,10 @@ msd = os.path.isfile(data_file_msd)
 gr = os.path.isfile(data_file_gr)
 Sk = os.path.isfile(data_file_Sk)
 Fs = os.path.isfile(data_file_Fs)
+Q  = os.path.isfile(data_file_Q)
 quantities = os.path.isfile(data_file_qty)
 
-num_axes = np.count_nonzero([msd, gr, Sk, Fs, quantities])
+num_axes = np.count_nonzero([msd, gr, Sk, Fs, Q, quantities])
 axes = init_fig(grid=(1,num_axes))
 current_axis = 0
 
@@ -181,6 +184,7 @@ if Sk:
 # Self-part of intermediate scattering function.
 if Fs:
     ax = axes[current_axis]
+    current_axis += 1
 
     # Fs
     # columns=step,F_s(t, k=kmax00)_species0,F_s(t, k=kmax11)_species1
@@ -211,9 +215,43 @@ if Fs:
     ax.set(xlabel="$t$", ylabel="$F_s(t, k=k_{\max})$", xscale='log', yscale='linear')
     nice_legend(ax)
 
-    ax_Sk = axes[current_axis - 1]
-    ax_Sk.axvline(x=kmaxAA, ls='--', lw=2*fit_lw, color=colors[0])
-    ax_Sk.axvline(x=kmaxBB, ls='--', lw=2*fit_lw, color=colors[2])
+    if Sk:
+        ax_Sk = axes[current_axis - 1]
+        ax_Sk.axvline(x=kmaxAA, ls='--', lw=2*fit_lw, color=colors[0])
+        ax_Sk.axvline(x=kmaxBB, ls='--', lw=2*fit_lw, color=colors[2])
+
+
+# Self-part of overlap function.
+if Q:
+    ax = axes[current_axis]
+    current_axis += 1
+
+    # Q
+    # columns=step,Q(t, a=a_A)_speciesA,Q(t, a=a_B)_speciesB
+    data = np.loadtxt(data_file_Fs)
+    step = data[:, 0]
+    Q0 = data[:, 1]
+    Q1 = data[:, 2]
+    t = step * dt
+
+    # columns=tau_A,a_A,tau_B,a_B,
+    with open(qty_file_Q) as f:
+        header = f.readline()
+        data = f.readline().split(" ")
+        tauA = float(data[0]) * dt  # tau is given in steps
+        tauB = float(data[2]) * dt
+        a_A  = float(data[1])
+        a_B  = float(data[3])
+
+    nice_plot(ax, t, Q0, color=colors[0], label=r"A ($\tau$ = %.3g)" % tauA, ls='-')
+    nice_plot(ax, t, Q1, color=colors[2], label=r"B ($\tau$ = %.3g)" % tauB, ls='-')
+
+    # ax.axvline(x=tauA, ls='--', lw=fit_lw, color=colors[0])
+    # ax.axvline(x=tauB, ls='--', lw=fit_lw, color=colors[2])
+    # ax.axhline(y=0.2, ls='--', lw=fit_lw, color='k')
+    ax.set(xlabel="$t$", ylabel="$Q_s(t; a)$", xscale='log', yscale='linear')
+    nice_legend(ax)
+
 
 
 plt.tight_layout()
