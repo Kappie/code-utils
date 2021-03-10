@@ -5,7 +5,7 @@ import argparse
 from datetime import datetime
 from shutil import copyfile
 import subprocess
-
+from time import sleep
 
 
 parser = argparse.ArgumentParser()
@@ -73,6 +73,9 @@ sbatch_command = "sbatch --mem=%s --time=%s --job-name=%s --partition=%s --outpu
 result = subprocess.run(sbatch_command, capture_output=True, shell=True)
 if result.stderr:
 	raise RuntimeError(result.stderr)
+
+# Pause to maybe not get race conflicts?
+sleep(0.1)
 
 job_id = int(result.stdout.split()[-1])
 print(job_id)
