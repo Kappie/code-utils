@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.optimize import curve_fit
 from scipy.special import erf
+import subprocess
+from io import StringIO
 
 
 def logbin(x, x_min=None, x_max=None, n_bins=100):
@@ -121,115 +123,6 @@ def qq_plotter(ax, samples1, samples2, nquantiles=100,
                linewidth=0.75,
                zorder=2,
                )
-
-
-
-
-
-
-# def hist_2d_loglog(x, y, num_bins):
-#     """bins sets the spatial resolution, should be around 200-500-1000"""
-        
-#     xmax, xmin, ymax, ymin = np.max(x), np.min(x), np.max(y), np.min(y)
-#     logfx, logfy = np.log(xmax/xmin)/num_bins, np.log(ymax/ymin)/num_bins
-
-#     counters = np.zeros((num_bins+1, num_bins+1))
-#     for i in range(x.size):
-#         x_index = np.floor( np.log(x[i]/xmin) / logfx )
-#         y_index = np.floor( np.log(y[i]/ymin) / logfy )
-#         counters[x_index, y_index] += 1
-
-#     max_count = np.max(counters[:])
-#     print(max_count)
-
-#     counters2 = np.zeros((num_bins+1, num_bins+1))
-#     colors = zeros_like(x)
-#     select = zeros_like(x)
-
-#     for i in range(x.size):
-#         x_index = np.floor( np.log(x[i]/xmin) / logfx )
-#         y_index = np.floor( np.log(y[i]/ymin) / logfy )
-#         counters2[x_index, y_index] += 1
-#         colors[i] = color_map(counters2[x_index, y_index])
-#         if counters2[x_index, y_index] > counters[x_index, y_index] - 1:
-#             select[i] = 1
-
-        
-#         select = np.nonzero(select == 1)
-#         x = x[select]
-#         y = y[select]
-#         colors = colors[select]
-
-
-# function map = getCloudColorMap(n)
-#     map = zeros(n,3);
-#     for i=1:n
-#         x = (i-1)/n;
-#         r = x;
-#         g = 0.2*x;
-#         b = 0.2*x;
-#         map(i,:) = [r g b];
-#     end
-
-# function plotColorClouds(x,y,bins)
-
-
-
-#     xMax = max(x);
-#     xMin = min(x);
-#     yMax = max(y);
-#     yMin = min(y);
-    
-#     logfx = log(xMax/xMin)/bins;
-#     logfy = log(yMax/yMin)/bins;
-    
-#     counters = zeros(bins+1,bins+1);
-#     maximal = 0;
-#     for i=1:length(x)
-#         xIndex = floor( log(x(i)/xMin)/logfx )+1;
-#         yIndex = floor( log(y(i)/yMin)/logfy )+1;
-#         counters(xIndex,yIndex) = counters(xIndex,yIndex)+1;
-#         if ( counters(xIndex,yIndex) > maximal )
-#             maximal = counters(xIndex,yIndex);
-#         end
-#     end
-    
-#     map = getCloudColorMap(maximal);
-    
-#     counters2 = zeros(bins+1,bins+1);
-#     colors = zeros(length(x),3);
-#     select = zeros(length(x),1);
-    
-#     for i=1:length(x)
-#         xIndex = floor( log(x(i)/xMin)/logfx )+1;
-#         yIndex = floor( log(y(i)/yMin)/logfy )+1;
-#         counters2(xIndex,yIndex) = counters2(xIndex,yIndex)+1;
-#         colors(i,:) = map(counters2(xIndex,yIndex),:);
-#         if ( counters2(xIndex,yIndex) > counters(xIndex,yIndex) - 1 )
-#             select(i) = 1;
-#         end 
-#     end
-#     length(x)
-#     x = x(select==1);
-#     y = y(select==1);
-#     %colors = colors(select==1,:)
-#     colors = colors(select==1);
-    
-#     length(x)
-    
-#     [b,indices] = sort(colors);
-#     indices = indices(end:-1:1);
-#     x = x(indices);
-#     y = y(indices);
-#     colors = colors(indices);
-    
-    
-    
-#     colormap('Copper');
-# %     scatter(x,y,10*ones(length(x),1),sqrt(colors),'filled');
-# 	scatter(x,y,15*ones(length(x),1),colors.^(1/3),'filled','s');
-# 	%scatter(x,y,12*ones(length(x),1),colors,'filled');
-#     set(gca,'xscale','log','yscale','log'); box on;
     
         
 
@@ -241,6 +134,24 @@ def gaussian_pdf(x, mu=0, sigma=1):
     
 
 
+# Structural metric wrappers
+def ovito_analysis(input_file, args="--centrosymmetry --ackland-jones --acna"):
+    """
+    Returns (npart, 3) array, where first column is centrosymmetry,
+    second column is ackland-jones, third column is adaptive common neighbor analysis.
+    For the second and third columns, the legend is 
+    0 == OTHER
+    1 == FCC
+    2 == HCP
+    3 == BCC
+    4 == ICO
+    """
+    cmd = "ovito_analysis.py --input_file=%s %s" % (input_file, args)
+    print(cmd)
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True)
+    data_string = StringIO(result.stdout.decode())
+    data = np.loadtxt(data_string)
+    return data
 
 
 
