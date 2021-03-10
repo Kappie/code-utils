@@ -8,7 +8,7 @@ import atooms
 import atooms.trajectory
 import gsd.hoomd
 
-from my_hoomd_utils import calculate_msd, calculate_radial_distribution_function, calculate_structure_factor, calculate_self_intermediate_scattering_function, calculate_overlap
+from my_hoomd_utils import calculate_msd, calculate_radial_distribution_function, calculate_structure_factor, calculate_self_intermediate_scattering_function, calculate_overlap, calculate_dynamic_susceptiblility, default_tgrid
 import model_utils
 from plotting_functions import *
 
@@ -23,6 +23,9 @@ p.add_argument("--gr", action='store_true')
 p.add_argument("--Sk", action='store_true')
 p.add_argument("--Fs", action='store_true')
 p.add_argument("--Q", action='store_true')
+p.add_argument("--chi4_Qs", action='store_true')
+p.add_argument("--chi4_Fs", action='store_true')
+p.add_argument("--tmax", type=float)
 p.add_argument("--T", type=float)
 p.add_argument("--rho", type=float)
 p.add_argument("--model_name", type=str)
@@ -30,6 +33,7 @@ args = p.parse_args()
 
 num_partitions = args.num_partitions
 traj_file = args.traj_file
+tmax = args.tmax
 
 
 
@@ -43,6 +47,8 @@ out_file_Fs = "%s/%s_Fs.dat" % (data_folder, base_name)
 out_file_Fs_qty = "%s/%s_Fs_qty.dat" % (data_folder, base_name)
 out_file_Q = "%s/%s_Q.dat" % (data_folder, base_name)
 out_file_Q_qty = "%s/%s_Q_qty.dat" % (data_folder, base_name)
+out_file_chi4_Qs = "%s/%s_chi4_Qs.dat" % (data_folder, base_name)
+out_file_chi4_Fs = "%s/%s_chi4_Fs.dat" % (data_folder, base_name)
 
 state_file = "%s/state.dat" % (data_folder)
 
@@ -51,7 +57,6 @@ if os.path.isfile(state_file):
     with open(state_file, "r") as f:
         lines = [line.rstrip() for line in f]
         data = lines[1].split(", ")
-
 
         model_name = str(data[0])
         T = float(data[1])
@@ -93,4 +98,29 @@ if args.Q:
     a = 0.3
 
     calculate_overlap(traj_file, a, out_file=out_file_Q, out_file_quantities=out_file_Q_qty)
+
+
+if args.chi4_Qs:
+    print("Starting with dynamic susceptibility of self overlap.")
+
+    a = 0.3
+    with atooms.trajectory.Trajectory(traj_file) as traj:
+        steps = traj.steps
+    
+    tgrid = default_tgrid(steps, t_upper_limit=tmax)
+
+    calculate_dynamic_susceptiblility(traj_file, out_file=out_file_chi4_Qs, corr="self_overlap", a=a, tgrid=tgrid)#, out_file_quantities=out_file_Q_qty)
+
+if args.chi4_Fs:
+    print("Starting with dynamic susceptibility of self intermediate scattering function.")
+
+    q_values =  model.get_qmax()
+
+    with atooms.trajectory.Trajectory(traj_file) as traj:
+        steps = traj.steps
+    
+    tgrid = default_tgrid(steps, t_upper_limit=tmax)
+
+    calculate_dynamic_susceptiblility(traj_file, out_file=out_file_chi4_Fs, corr="self_intermediate_scattering", nk=8, dk=0.1, fix_cm=False, kgrid=q_values, tgrid=tgrid)#, out_file_quantities=out_file_Q_qty)
+    
 

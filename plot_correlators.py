@@ -32,6 +32,8 @@ data_file_gr = "%s/%s_gr.dat" % (data_folder, base_name)
 data_file_Sk = "%s/%s_Sk.dat" % (data_folder, base_name)
 data_file_Fs = "%s/%s_Fs.dat" % (data_folder, base_name)
 data_file_Q = "%s/%s_Q.dat" % (data_folder, base_name)
+data_file_chi4_Qs = "%s/%s_chi4_Qs.dat" % (data_folder, base_name)
+data_file_chi4_Fs = "%s/%s_chi4_Fs.dat" % (data_folder, base_name)
 qty_file_Fs = "%s/%s_Fs_qty.dat" % (data_folder, base_name)
 qty_file_Q = "%s/%s_Q_qty.dat" % (data_folder, base_name)
 data_file_qty = "%s/quantities.dat" % (data_folder)
@@ -43,9 +45,11 @@ gr = os.path.isfile(data_file_gr)
 Sk = os.path.isfile(data_file_Sk)
 Fs = os.path.isfile(data_file_Fs)
 Q  = os.path.isfile(data_file_Q)
+chi4_Qs  = os.path.isfile(data_file_chi4_Qs)
+chi4_Fs  = os.path.isfile(data_file_chi4_Fs)
 quantities = os.path.isfile(data_file_qty)
 
-num_axes = np.count_nonzero([msd, gr, Sk, Fs, Q, quantities])
+num_axes = np.count_nonzero([msd, gr, Sk, Fs, Q, quantities, chi4_Qs, chi4_Fs])
 axes = init_fig(grid=(1,num_axes))
 current_axis = 0
 
@@ -134,8 +138,8 @@ if msd:
         tau_D0 = data_qty[i-1, 1] * dt # tau is given in steps
         D1 = data_qty[i-1, 2] / dt
         tau_D1 = data_qty[i-1, 3] * dt
-        nice_plot(ax, t, msd0, color=colors[2*i-2], label=r"A%d ($D$ = %2g, $\tau_D$ = %.2g)" % (i, D0, tau_D0), ls='-')
-        nice_plot(ax, t, msd1, color=colors[2*i-1], label=r"B%d ($D$ = %2g, $\tau_D$ = %.2g)" % (i, D1, tau_D1), ls='-')
+        nice_plot(ax, t, msd0, color=colors[2*i-2], label=r"A%d" % (i), ls='-')
+        nice_plot(ax, t, msd1, color=colors[2*i-1], label=r"B%d" % (i), ls='-')
 
 
     ax.set(xlabel="$t$", ylabel="MSD", xscale='log', yscale='log')
@@ -215,10 +219,10 @@ if Fs:
     ax.set(xlabel="$t$", ylabel="$F_s(t, k=k_{\max})$", xscale='log', yscale='linear')
     nice_legend(ax)
 
-    if Sk:
-        ax_Sk = axes[current_axis - 1]
-        ax_Sk.axvline(x=kmaxAA, ls='--', lw=2*fit_lw, color=colors[0])
-        ax_Sk.axvline(x=kmaxBB, ls='--', lw=2*fit_lw, color=colors[2])
+    # if Sk:
+    #     ax_Sk = axes[current_axis - 1]
+    #     ax_Sk.axvline(x=kmaxAA, ls='--', lw=2*fit_lw, color=colors[0])
+    #     ax_Sk.axvline(x=kmaxBB, ls='--', lw=2*fit_lw, color=colors[2])
 
 
 # Self-part of overlap function.
@@ -250,6 +254,50 @@ if Q:
     # ax.axvline(x=tauB, ls='--', lw=fit_lw, color=colors[2])
     # ax.axhline(y=0.2, ls='--', lw=fit_lw, color='k')
     ax.set(xlabel="$t$", ylabel="$Q_s(t; a)$", xscale='log', yscale='linear')
+    nice_legend(ax)
+
+if chi4_Qs:
+    ax = axes[current_axis]
+    current_axis += 1
+
+    # columns=step,chi4_Qs(t, a=0.300)_speciesA,chi4_Qs(t, a=0.300)_speciesB
+    data = np.loadtxt(data_file_chi4_Qs)
+    step = data[:, 0]
+    chi4_Qs_0 = data[:, 1]
+    chi4_Qs_1 = data[:, 2]
+    t = step * dt
+
+    # columns=tau_A,a_A,tau_B,a_B,
+    # with open(qty_file_Q) as f:
+    #     header = f.readline()
+    #     data = f.readline().split(" ")
+    #     tauA = float(data[0]) * dt  # tau is given in steps
+    #     tauB = float(data[2]) * dt
+    #     a_A  = float(data[1])
+    #     a_B  = float(data[3])
+
+    nice_plot(ax, t, chi4_Qs_0, color=colors[0], label=r"A", ls='-')
+    nice_plot(ax, t, chi4_Qs_1, color=colors[2], label=r"B", ls='-')
+
+    ax.set(xlabel="$t$", ylabel="$\chi_{4}^{Q_s}(t; a)$", xscale='log', yscale='linear')
+    nice_legend(ax)
+
+
+if chi4_Fs:
+    ax = axes[current_axis]
+    current_axis += 1
+
+    # columns=step,chi4_Fs(t, k=6.351)_speciesA,chi4_Fs(t, k=6.889)_speciesB
+    data = np.loadtxt(data_file_chi4_Fs)
+    step = data[:, 0]
+    chi4_Fs_0 = data[:, 1]
+    chi4_Fs_1 = data[:, 2]
+    t = step * dt
+
+    nice_plot(ax, t, chi4_Fs_0, color=colors[0], label=r"A", ls='-')
+    nice_plot(ax, t, chi4_Fs_1, color=colors[2], label=r"B", ls='-')
+
+    ax.set(xlabel="$t$", ylabel="$\chi_{4}^{F_s}(t; q_{\max})$", xscale='log', yscale='linear')
     nice_legend(ax)
 
 

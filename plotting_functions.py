@@ -27,9 +27,10 @@ from lerner_group.visualization_tools import histogram_log_bins
 colors = sns.color_palette('deep')
 markers = list(Line2D.filled_markers)
 annot_font_size = 8
-label_font_size = 8
+label_font_size = 10
+tick_font_size = 8
 text_font_size = 10
-legend_font_size = label_font_size
+legend_font_size = tick_font_size
 fit_lw = 0.75
 markeredgewidth = 0.5
 markersize = 4.5
@@ -45,7 +46,7 @@ def myshow():
     plt.tight_layout()
     plt.show()
 
-def init_fig(width=None, height=None, grid=(1,1), locs=None, colspans=None, rowspans=None, projections=None, facecolor='white', ax_width=0.5, text_font_size=text_font_size, label_font_size=label_font_size, default_size=2.5):
+def init_fig(width=None, height=None, grid=(1,1), locs=None, colspans=None, rowspans=None, projections=None, facecolor='white', ax_width=0.5, text_font_size=text_font_size, label_font_size=label_font_size, tick_font_size=tick_font_size, default_size=2.5):
     # locs: 
     if not width:
         width = grid[1]*default_size
@@ -68,14 +69,14 @@ def init_fig(width=None, height=None, grid=(1,1), locs=None, colspans=None, rows
 
     params = {
         'text.usetex': True,
-        'text.latex.preamble': "\\usepackage{physics}\n\\usepackage{amsmath}\n\\usepackage{cmbright}\n\\DeclareMathOperator{\\cdf}{CDF}\n\\DeclareMathOperator{\\pdf}{PDF}",
-        'xtick.labelsize': label_font_size,
-        'ytick.labelsize': label_font_size,
+        'text.latex.preamble': "\\usepackage{amsmath}\n\\usepackage{physics}\n\\usepackage{cmbright}\n\\DeclareMathOperator{\\cdf}{CDF}\n\\DeclareMathOperator{\\pdf}{PDF}\n\\DeclareMathOperator{\\Var}{Var}",
+        'xtick.labelsize': tick_font_size,
+        'ytick.labelsize': tick_font_size,
         'xtick.direction': 'in',
         'ytick.direction': 'in',
         'xtick.major.width': ax_width,
         'ytick.major.width': ax_width,
-        'axes.labelsize': text_font_size,
+        'axes.labelsize': label_font_size,
         'axes.linewidth': ax_width,
         'font.size': text_font_size
     }
@@ -149,11 +150,11 @@ def plot_phonon_widths(ax, filename, N, marker, color):
     ax.loglog(x, delta_omega, marker=marker, color=color, ls='None', markeredgewidth=markeredgewidth, markeredgecolor='k',markersize=markersize)
 
 
-def nice_plot(ax, x, y, xerr=None, yerr=None, color=colors[0], ecolor='k', marker='o', xscale='linear', yscale='linear', ls='None', ms=markersize, markeredgecolor='k', markeredgewidth=0, alpha=1, markerfacecolor=None, label=None, barsabove=False, lw=fit_lw, zorder=None):
+def nice_plot(ax, x, y, xerr=None, yerr=None, color=colors[0], ecolor=None, marker='o', xscale='linear', yscale='linear', ls='None', ms=markersize, markeredgecolor='k', markeredgewidth=0, alpha=1, markerfacecolor=None, label=None, barsabove=False, lw=fit_lw, zorder=None):
     if not markerfacecolor:
         markerfacecolor = color
     if xerr is not None or yerr is not None:
-        ax.errorbar(x, y, xerr=xerr, yerr=yerr, fmt='-', marker=marker, color=color, ecolor=ecolor, markeredgewidth=markeredgewidth, markeredgecolor=markeredgecolor, ms=ms, lw=lw, ls=ls, elinewidth=fit_lw, capsize=2, capthick=0.5, barsabove=barsabove, label=label, zorder=zorder)
+        ax.errorbar(x, y, xerr=xerr, yerr=yerr, fmt='-', marker=marker, color=color, ecolor=ecolor, markeredgecolor=markeredgecolor, markeredgewidth=markeredgewidth, ms=ms, lw=lw, ls=ls, elinewidth=lw, capsize=(ms+markeredgewidth)/2, barsabove=barsabove, label=label, zorder=zorder)
     else:
         ax.plot(x, y, marker=marker, color=color, ls=ls, markeredgewidth=markeredgewidth, markeredgecolor=markeredgecolor, markersize=ms, alpha=alpha, markerfacecolor=markerfacecolor, label=label, lw=lw, zorder=zorder)
 

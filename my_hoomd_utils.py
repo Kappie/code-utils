@@ -415,7 +415,7 @@ def detect_and_fix_spacing(steps):
     return result
 
 
-def default_tgrid(steps, num_data_points_linear=30):
+def default_tgrid(steps, num_data_points_linear=30, t_upper_limit=None):
     result = detect_and_fix_spacing(steps)
     steps = result["corrected_steps"]
     mode = result["mode"]
@@ -442,6 +442,11 @@ def default_tgrid(steps, num_data_points_linear=30):
     elif mode == "other":
         # Throw the towel.
         tgrid = steps
+
+    if t_upper_limit:
+        tgrid = np.array(tgrid)
+        tgrid = tgrid[tgrid <= t_upper_limit]
+        tgrid = tgrid.tolist()
 
     return tgrid
 
@@ -473,11 +478,11 @@ def calculate_msd(traj_file, num_partitions=1, out_file=None, out_file_quantitie
             base = result["base"]
             max_exp = result["max_exp"]
 
-            block_size = int(base ** max_exp)
+            # block_size = int(base ** max_exp)
 
-            tmin = traj.steps[0]
-            tmax = traj.steps[-1]
-            nblocks = (tmax - tmin) // block_size
+            # tmin = traj.steps[0]
+            # tmax = traj.steps[-1]
+            nblocks = len(traj.steps) // traj.block_size
             # frames_per_partition = nframes // num_partitions
             frames_per_partition = (nblocks // 2) * traj.block_size
             print("detected a logarithmically spaced trajectory with block_size %d ** %d. Num frames in block: %d" % (base, max_exp, traj.block_size))
@@ -965,6 +970,73 @@ def calculate_overlap(traj_file, a, out_file=None, out_file_quantities=None, col
             f.write(data)
 
 
+def calculate_dynamic_susceptiblility(traj_file, out_file=None, corr="self_overlap", tgrid=None, **kwargs):
+
+    with atooms.trajectory.Trajectory(traj_file) as traj:
+        nframes = len(traj.steps)
+        species = traj[0].distinct_species()
+
+        result = detect_and_fix_spacing(traj.steps)
+        corrected_steps = result["corrected_steps"]
+        traj.steps = corrected_steps.tolist()
+        mode = result["mode"]
+        if mode == "log":
+            base = result["base"]
+            max_exp = result["max_exp"]
+            block_size = int(base ** max_exp)
+            print("Detected a logarithmically spaced trajectory of %d frames with block_size %d ** %d. Num frames in block: %d" % (nframes, base, max_exp, traj.block_size))
+        elif mode == "linear":
+            spacing = result["spacing"]
+            print("Detected a linearly spaced trajectory of %d frames with spacing %d." % (nframes, spacing))
+
+        if tgrid == None:
+            tgrid = default_tgrid(traj.steps)
+
+
+        chi4s = []
+
+        if corr == "self_overlap":
+            func = pp.Chi4SelfOverlap
+            func_args = (traj,)
+            func_kwargs = dict(tgrid=tgrid, **kwargs)
+            analysis = pp.Partial(func, species, func_args, func_kwargs)
+            analysis.do()
+            analysis = analysis.partial # Dict with results for each species
+            tgrid = analysis[species[0]].grid
+            for i, spec in enumerate(species):
+                chi4s.append( np.array(analysis[spec].value) )
+        elif corr == "self_intermediate_scattering":
+            func = pp.Susceptibility
+            func_kwargs = dict(tgrid=tgrid, **kwargs)
+            func_args = (pp.SelfIntermediateScattering, traj)
+            analysis = pp.Partial(func, species, func_args, func_kwargs)
+            analysis.do()
+            analysis = analysis.partial # Dict with results for each species
+            tgrid = analysis[species[0]].grid[1]
+            for i, spec in enumerate(species):
+                chi4s.append( np.array(analysis[spec].value[i]) )
+        else:
+            print("Did not recognize correlator %s" % corr)
+            
+
+
+    if out_file:
+        columns = (tgrid,)
+        fmt = "%d"
+        header = "columns=step,"
+        for i, spec in enumerate(species):
+            columns += (chi4s[i],)
+            fmt += " %.8g"
+            if corr == "self_overlap":
+                header += "chi4_Qs(t, a=%.3f)_species%s," % (kwargs['a'], spec)
+            elif corr == "self_intermediate_scattering":
+                # TODO: fix this to actual k values.
+                header += "chi4_Fs(t, k=%.3f)_species%s," % (analysis[spec].grid[0][i], spec)
+        header = header[:-1]    # remove final comma.
+
+        columns = np.column_stack(columns)
+        np.savetxt(out_file, columns, fmt=fmt, header=header)
+
 def setup_output_folders(base_folder):
 
     traj_folder = os.path.join(base_folder, "trajectory")
@@ -1067,4 +1139,40 @@ def get_state_information(traj_file):
         raise Exception("Could not find %s" % state_file)
 
 
+def sticky_spheres_rc12(x):
+    coeff = {
+        'a0':-106.991613526652, 'b0':-304.918469059567,'c0':-939.388037994211,
+        'c2':1190.70962256002, 'c4':-541.3001315875512, 'c6':85.86849369147127
+    }
+    xc = 1.2
+    x_min=2.0**(1.0/6.0)
+    x_cutoff = x_min * xc
+
+    def pot(y):
+        if y < x_cutoff:
+            if y < x_min:
+                inst_pot = 4.0 * ( y**(-12.0) - y**(-6.0) )
+                return inst_pot
+            else:
+                inst_pot = coeff['a0']*y**(-12.0) - coeff['b0']*y**(-6.0) + coeff['c6']*y**6.0 + coeff['c4']*y**4.0 + coeff['c2']*y**2.0 + coeff['c0']
+                return inst_pot
+        else:
+            return 0.0
+
+    vec_pot = np.vectorize(pot)
+    return vec_pot(x)
+
+def fit_jeppe_curve(kappa_over_T, tau_alpha):
+    (A, log_tau_prefactor) = np.polyfit(kappa_over_T, np.log(tau_alpha), 1)
+    tau_prefactor = np.exp(log_tau_prefactor)
+    return (A, tau_prefactor)
+
+
+def numpy_to_xyz(out_file, pos, ptypes, box_size, step=0):
+    npart = pos.shape[0]
+    with open(out_file, "w") as f:
+        f.write("%d\n" % npart)
+        f.write("step:%d columns:id,pos dt:1 cell:%.15g,%.15g,%.15g\n" % (step, box_size[0], box_size[1], box_size[2]))
+        for i in range(npart):
+            f.write("%d %.15g %.15g %.15g\n" % (ptypes[i], pos[i, 0], pos[i, 1], pos[i, 2]))
 
