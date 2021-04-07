@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/home/geert/Code/Python/env3.8/bin/python
 import numpy as np
 from ovito.io import import_file, export_file
 from ovito.modifiers import *

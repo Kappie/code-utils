@@ -24,6 +24,10 @@ from atooms.postprocessing.fourierspace import FourierSpaceCorrelation
 import freud.box
 import freud.locality
 
+from atooms.system.cell import Cell
+from atooms.system import System
+from atooms.system.particle import Particle, distinct_species
+
 try:
     import hoomd
     from hoomd import md
@@ -1176,3 +1180,30 @@ def numpy_to_xyz(out_file, pos, ptypes, box_size, step=0):
         for i in range(npart):
             f.write("%d %.15g %.15g %.15g\n" % (ptypes[i], pos[i, 0], pos[i, 1], pos[i, 2]))
 
+def dump_config(filename, pos=None, diam=None, ptypes=None, box=None, compress=None):
+    file_ext = os.path.splitext(filename)[1]
+    cell = Cell(side=box)
+    npart = pos.shape[0]
+
+    particles = []
+    for i in range(npart):
+        p = Particle(
+            species  = ptypes[i],
+            position = pos[i, :] - box /2.,
+            radius   = diam[i] / 2.
+        )
+        particles.append(p)
+
+    system = System(particle=particles, cell=cell)
+
+    with Trajectory(filename, "w") as traj:
+        # Step is always 0 for now.
+        traj.write(system, 0)
+
+    if file_ext == ".xyz":
+        compress = True
+    else:
+        compress = False
+
+    if compress:
+        subprocess.run(["gzip", "-f", filename])

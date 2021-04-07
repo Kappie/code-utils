@@ -3,6 +3,20 @@ from scipy.optimize import curve_fit
 from scipy.special import erf
 import subprocess
 from io import StringIO
+import os
+
+from lerner_group.visualization_tools import histogram_log_bins
+
+OTHER = 0; FCC = 1; HCP = 2; BCC = 3; ICO = 4;  # ovito crystal analysis codes.
+OVITO_CRYSTAL_CODES = [OTHER, FCC, HCP, BCC, ICO]
+
+CRYSTAL_CODE_NAMES = {
+    OTHER: 'other',
+    FCC:   'fcc',
+    HCP:   'hcp',
+    BCC:   'bcc',
+    ICO:   'ico'
+}
 
 
 def logbin(x, x_min=None, x_max=None, n_bins=100):
@@ -147,11 +161,34 @@ def ovito_analysis(input_file, args="--centrosymmetry --ackland-jones --acna"):
     4 == ICO
     """
     cmd = "ovito_analysis.py --input_file=%s %s" % (input_file, args)
-    print(cmd)
     result = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True)
     data_string = StringIO(result.stdout.decode())
     data = np.loadtxt(data_string)
     return data
 
 
+def bin_omega(omega, nbins=40, min_hits=5, npart=None, ndim=None):
+    num_modes = omega.shape[1]
+    n_solids = omega.shape[0]
+    n_samples = num_modes * n_solids
 
+    counts, centers, total_hits, _, smallest_bin_width = histogram_log_bins(omega.flatten(), num_of_bins=nbins, min_hits=min_hits)
+    # fraction = num_modes / (npart*ndim)
+    # counts *= fraction / (n_samples * smallest_bin_width)
+    counts /= (smallest_bin_width * n_solids * npart * ndim) 
+
+    return centers, counts
+
+
+def read_modes(data_folder):
+    kappa = []
+    e = []
+
+    filenames = ["%s/%s" % (data_folder, fname) for fname in os.listdir(data_folder)]
+
+    for fname in filenames:
+        data = np.loadtxt(fname)
+        kappa.append(data[:, 0])
+        e.append(data[:, 1])
+
+    return np.asarray(kappa), np.asarray(e)

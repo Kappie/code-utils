@@ -20,7 +20,8 @@ from matplotlib.colors import LogNorm, Normalize
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.cm import ScalarMappable
 
-from palettable.colorbrewer.diverging import RdYlBu_7
+import matplotlib.image as img
+
 from lerner_group.visualization_tools import histogram_log_bins
 
 # colors = ['palevioletred', 'darkslateblue', 'mediumseagreen', 'mediumpurple', 'darkorange', 'firebrick', 'mediumturquoise', 'olive', 'indigo', 'goldenrod']
@@ -127,8 +128,8 @@ def nice_legend(ax, box=False, labels=None, handles=None, **kwargs):
     return legend
 
 
-def nice_triangle(ax, location, slope, invert=False, size_frac=0.18, font_size=annot_font_size, custom_rise_label=None, pad_frac_x=0.2, pad_frac_y=0.2):
-    slope_marker(location, slope, ax=ax, invert=invert, size_frac=size_frac, custom_rise_label=custom_rise_label, fontsize=font_size,
+def nice_triangle(ax, location, slope, invert=False, size_frac=0.18, fontsize=annot_font_size, custom_rise_label=None, pad_frac_x=0.2, pad_frac_y=0.2):
+    slope_marker(location, slope, ax=ax, invert=invert, size_frac=size_frac, custom_rise_label=custom_rise_label, fontsize=fontsize,
         poly_kwargs={'facecolor': 'white', 'edgecolor':'black', 'linewidth':fit_lw}, pad_frac_x=pad_frac_x, pad_frac_y=pad_frac_y)
 
 def autolabel_bar(rects, ax, labels, rotate=0, offset=3):
@@ -179,11 +180,19 @@ def lighten_color(color, amount):
     return colorsys.hls_to_rgb(c[0], 1 - amount * (1 - c[1]), c[2])
 
 
-def draw_line_loglog(ax, exponent, prefactor=1, color='k', ls='-', lw=0.75):
-    xlim = np.asarray(ax.get_xlim())
-    ylim = np.asarray(ax.get_ylim())
-    ax.loglog(xlim, prefactor*xlim**exponent, color=color, ls=ls, lw=lw)
-    ax.set(xlim=xlim, ylim=ylim)
+def draw_line_loglog(ax, exponent, prefactor=1, color='k', ls='-', lw=0.75, limits='data', x_fit=None):
+    """
+    limits = 'data' takes the start and end points of the data as limits for the line.
+    limits = 'axis' takes the xlim of the axis.
+    """
+    if limits == 'axis':
+        xlim = np.asarray(ax.get_xlim())
+        ylim = np.asarray(ax.get_ylim())
+        ax.loglog(xlim, prefactor*xlim**exponent, color=color, ls=ls, lw=lw)
+        ax.set(xlim=xlim, ylim=ylim)
+    elif limits == 'data':
+        xlim = np.array( [np.min(x_fit), np.max(x_fit) ] )
+        ax.loglog(xlim, prefactor*xlim**exponent, color=color, ls=ls, lw=lw)
 
 
 def cumulative_histogram_log(x, x_min=None, x_max=None, nbins=20):
@@ -244,7 +253,7 @@ def add_labels(axes, style=r'(%s)', shift_x_em=None, custom_labels=None, fontsiz
     for i, ax in enumerate(axes):
         transform = ax.transAxes
         inv_transform = ax.transAxes.inverted()
-        highest_ytick_bbox = ax.get_yticklabels()[-1].get_window_extent()
+        # highest_ytick_bbox = ax.get_yticklabels()[-1].get_window_extent()
         ylabel = ax.yaxis.label.get_text()
         ylabelbox = ax.yaxis.label.get_window_extent()
         axbox = ax.get_window_extent()
@@ -312,3 +321,12 @@ def nice_colorbar(ax, cmap=None, norm=None, kwargs={}, cbar_kwargs={}):
 
 def nice_text(ax, string=None, x_rel=None, y_rel=None, horizontalalignment='center', verticalalignment='center', **kwargs):
     ax.text(x_rel, y_rel, string, horizontalalignment=horizontalalignment, verticalalignment=verticalalignment, transform=ax.transAxes, **kwargs)
+
+def nice_image(ax, img_file):
+    image = img.imread(img_file)
+    ax.imshow(image)
+    ax.axis('off')
+
+def create_inset(left=None, bottom=None, width=None, height=None):
+    ax = plt.gcf().add_axes([left, bottom, width, height])
+    return ax
