@@ -53,7 +53,7 @@ ratio = sim.system.typical_grad / sim.pairwise.typical_contact_force
 print("typGrad / typContactForce = %g" % (ratio))
 
 if ratio > 1e-5:
-    error_file = "%s/error%d.dat" % (modes_folder, serial)
+    error_file = "%s/error%d.dat" % (modes_folder, solid_name)
     with open(error_file, "w") as f:
         f.write("typical_grad/typical_contact_force=%.12g\n" % ratio)
     raise SystemExit
